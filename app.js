@@ -25,6 +25,9 @@ const state = {
   weatherToken: 0,
   sortKey: null,
   sortDir: 1,
+  ghostOn: localStorage.getItem("tracker_ghost") === "1",
+  settings: loadSettings(),
+  proxAlerted: {},
 };
 
 /* ---------------- theme switcher ---------------- */
@@ -148,6 +151,107 @@ function statusCategory(s) {
 
 const DOT_CLASS = { underway: "green", rest: "amber", other: "blue" };
 const DOT_COLOR = { underway: "#19d3a5", rest: "#f0b429", other: "#2fa8ff" };
+
+/* ---------------- navigation & time utilities ---------------- */
+
+const R_NM = 3440.065;
+const toRad = (d) => (d * Math.PI) / 180;
+const toDeg = (r) => (r * 180) / Math.PI;
+
+function haversine(lat1, lon1, lat2, lon2) {
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R_NM * Math.asin(Math.sqrt(a));
+}
+
+function initialBearing(lat1, lon1, lat2, lon2) {
+  const y = Math.sin(toRad(lon2 - lon1)) * Math.cos(toRad(lat2));
+  const x =
+    Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+    Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lon2 - lon1));
+  return (toDeg(Math.atan2(y, x)) + 360) % 360;
+}
+
+function destinationPoint(lat, lon, bearingDeg, distNm) {
+  const d = distNm / R_NM;
+  const t = toRad(bearingDeg);
+  const p1 = toRad(lat);
+  const l1 = toRad(lon);
+  const p2 = Math.asin(Math.sin(p1) * Math.cos(d) + Math.cos(p1) * Math.sin(d) * Math.cos(t));
+  const l2 = l1 + Math.atan2(Math.sin(t) * Math.sin(d) * Math.cos(p1), Math.cos(d) - Math.sin(p1) * Math.sin(p2));
+  return [toDeg(p2), ((toDeg(l2) + 540) % 360) - 180];
+}
+
+function deadReckon(v, hours) {
+  const p = v.position;
+  if (!p || p.lat == null || p.lon == null || p.sog == null || p.sog < 1) return null;
+  return destinationPoint(p.lat, p.lon, p.cog != null ? p.cog : 0, p.sog * hours);
+}
+
+function sunTimes(lat, lon, date = new Date()) {
+  const jd = date.getTime() / 86400000 + 2440587.5;
+  const n = Math.round(jd - 2451545.0 + 0.0008);
+  const jStar = 2451545.0 + 0.0009 + n;
+  const M = (357.5291 + 0.98560028 * (jStar - 2451545.0)) % 360;
+  const C = 1.9148 * Math.sin(toRad(M)) + 0.02 * Math.sin(toRad(2 * M)) + 0.0003 * Math.sin(toRad(3 * M));
+  const L = (M + C + 180 + 102.9372) % 360;
+  const jT = jStar + 0.0053 * Math.sin(toRad(M)) - 0.0069 * Math.sin(toRad(2 * L));
+  const sinD = Math.sin(toRad(L)) * Math.sin(toRad(23.4397));
+  const cosD = Math.sqrt(1 - sinD * sinD);
+  const cosH = (Math.sin(toRad(-0.83)) - Math.sin(toRad(lat)) * sinD) / (Math.cos(toRad(lat)) * cosD);
+  if (Math.abs(cosH) > 1) return null; // polar day/night
+  const H = toDeg(Math.acos(cosH));
+  const toDate = (j) => new Date((j - 2440587.5) * 86400000);
+  return { sunrise: toDate(jT - H / 360), sunset: toDate(jT + H / 360) };
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function parseMdhms(str) {
+  if (!str) return null;
+  const m = String(str).match(/([A-Za-z]{3,4})\s+(\d{1,2}),?\s*(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  const mn = MONTHS.indexOf(m[1].slice(0, 3));
+  if (mn < 0) return null;
+  let y = new Date().getUTCFullYear();
+  let d = new Date(Date.UTC(y, mn, +m[2], +m[3], +m[4]));
+  if (d.getTime() > Date.now() + 180 * 86400000) d = new Date(Date.UTC(y - 1, mn, +m[2], +m[3], +m[4]));
+  if (d.getTime() < Date.now() - 180 * 86400000) d = new Date(Date.UTC(y + 1, mn, +m[2], +m[3], +m[4]));
+  return d;
+}
+
+function fmtDur(ms) {
+  if (ms == null) return "—";
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return s + " s";
+  const m = Math.floor(s / 60);
+  if (m < 60) return m + " min";
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + " h";
+  const d = Math.floor(h / 24);
+  return d + " d" + (h % 24 ? " " + (h % 24) + " h" : "");
+}
+function fmtHm(d) {
+  const p = (n) => String(n).padStart(2, "0");
+  return p(d.getUTCHours()) + ":" + p(d.getUTCMinutes());
+}
+function fmtClock(d) {
+  const p = (n) => String(n).padStart(2, "0");
+  return p(d.getUTCHours()) + ":" + p(d.getUTCMinutes()) + ":" + p(d.getUTCSeconds());
+}
+function fmtLatLonPair(lat, lon) {
+  return (
+    Math.abs(lat).toFixed(1) + "°" + (lat >= 0 ? "N" : "S") + "  " +
+    Math.abs(lon).toFixed(1) + "°" + (lon >= 0 ? "E" : "W")
+  );
+}
+function localOf(v, utcDate) {
+  const off = v.position && v.position.lon != null ? v.position.lon / 15 : 0;
+  return new Date(utcDate.getTime() + off * 3600000);
+}
 
 /* ---------------- activity log (localStorage) ---------------- */
 
@@ -316,6 +420,391 @@ document.querySelectorAll(".board th[data-sort]").forEach((th) => {
   });
 });
 
+/* ---------------- geocoder (Nominatim, cached) ---------------- */
+
+const geoCache = new Map();
+async function geocode(text) {
+  if (!text) return null;
+  const key = String(text).toLowerCase().replace(/[>=]/g, "").trim();
+  if (geoCache.has(key)) return geoCache.get(key);
+  try {
+    const c = JSON.parse(localStorage.getItem("tracker_geo_" + key));
+    if (c && c.lat != null) {
+      geoCache.set(key, c);
+      return c;
+    }
+  } catch (_) {}
+  try {
+    const res = await fetch(
+      "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" +
+        encodeURIComponent(key),
+      { headers: { "Accept-Language": "en" } }
+    );
+    if (!res.ok) throw new Error("geocode failed");
+    const arr = await res.json();
+    const c = arr && arr[0] ? { lat: +arr[0].lat, lon: +arr[0].lon } : null;
+    geoCache.set(key, c);
+    try {
+      localStorage.setItem("tracker_geo_" + key, JSON.stringify(c));
+    } catch (_) {}
+    return c;
+  } catch (_) {
+    return null;
+  }
+}
+
+/* ---------------- behavioral insights ---------------- */
+
+const statsKey = (imo) => "tracker_stats_" + imo;
+
+function loadStats(imo) {
+  try {
+    return JSON.parse(localStorage.getItem(statsKey(imo))) || null;
+  } catch (_) {
+    return null;
+  }
+}
+function saveStats(s) {
+  try {
+    localStorage.setItem(statsKey(s.imo), JSON.stringify(s));
+  } catch (_) {}
+}
+
+const GAP_MS = 45 * 60000;
+
+function updateStats(v) {
+  if (!v || !v.position) return;
+  const now = Date.now();
+  const st = loadStats(v.imo) || {
+    imo: v.imo, firstSeen: now, lastSeen: now,
+    observedMs: 0, anchoredMs: 0, underwayMs: 0, otherMs: 0,
+    distanceNm: 0, sogSum: 0, sogN: 0, maxSog: 0,
+    prevStatus: null, prevPos: null, prevAt: null,
+    anchorRunStart: null, longestAnchorMs: 0,
+    arrivals: 0, departures: 0,
+  };
+  const cat = statusCategory(v.navStatus);
+  if (st.prevStatus && st.prevAt != null && now - st.prevAt < GAP_MS) {
+    const dt = Math.max(0, now - st.prevAt);
+    st.observedMs += dt;
+    if (st.prevStatus === "underway") st.underwayMs += dt;
+    else if (st.prevStatus === "rest") st.anchoredMs += dt;
+    else st.otherMs += dt;
+  }
+  const p = v.position;
+  if (p.lat != null && p.lon != null && st.prevPos) {
+    st.distanceNm += haversine(st.prevPos.lat, st.prevPos.lon, p.lat, p.lon);
+  }
+  if (p.sog != null) {
+    st.sogSum += p.sog;
+    st.sogN++;
+    st.maxSog = Math.max(st.maxSog, p.sog);
+  }
+  if (cat === "rest") {
+    if (!st.anchorRunStart) st.anchorRunStart = now;
+  } else if (st.anchorRunStart) {
+    const dur = now - st.anchorRunStart;
+    if (dur > st.longestAnchorMs) st.longestAnchorMs = dur;
+    st.anchorRunStart = null;
+  }
+  if (st.prevStatus && st.prevStatus !== cat) {
+    if (st.prevStatus === "underway" && cat === "rest") st.arrivals++;
+    if (st.prevStatus === "rest" && cat === "underway") st.departures++;
+  }
+  st.prevStatus = cat;
+  st.prevPos = p.lat != null && p.lon != null ? { lat: p.lat, lon: p.lon } : st.prevPos;
+  st.prevAt = now;
+  st.lastSeen = now;
+  saveStats(st);
+}
+
+function insCell(k, v) {
+  return '<div class="ins-cell"><span>' + k + "</span><b>" + v + "</b></div>";
+}
+
+function renderInsights(v) {
+  const body = $("insights-body");
+  const seen = $("insights-seen");
+  if (!body) return;
+  const st = v ? loadStats(v.imo) : null;
+  if (!st || st.observedMs < 10 * 60000) {
+    if (seen) seen.textContent = st ? "just started watching" : "";
+    body.innerHTML =
+      '<p class="tl-empty">Insights build up as this app watches the vessel (status &amp; speed sampled every ~5 min). Check back after a while.</p>';
+    return;
+  }
+  const tot = st.observedMs || 1;
+  const ap = (st.anchoredMs / tot) * 100;
+  const up = (st.underwayMs / tot) * 100;
+  if (seen) seen.textContent = "tracked for " + fmtDur(Date.now() - st.firstSeen);
+  body.innerHTML =
+    '<div class="ins-bar"><span class="ib-label">At anchor</span><div class="ib-track"><div class="ib-fill amber" style="width:' + ap.toFixed(0) + '%"></div></div><b>' + ap.toFixed(0) + "%</b></div>" +
+    '<div class="ins-bar"><span class="ib-label">Under way</span><div class="ib-track"><div class="ib-fill green" style="width:' + up.toFixed(0) + '%"></div></div><b>' + up.toFixed(0) + "%</b></div>" +
+    '<div class="ins-grid">' +
+    insCell("Distance covered", Math.round(st.distanceNm).toLocaleString() + " nm") +
+    insCell("Avg speed", (st.sogN ? (st.sogSum / st.sogN).toFixed(1) : "—") + " kn") +
+    insCell("Top speed", st.maxSog ? st.maxSog.toFixed(1) + " kn" : "—") +
+    insCell("Longest anchor", fmtDur(st.longestAnchorMs)) +
+    insCell("Arrivals", st.arrivals) +
+    insCell("Departures", st.departures) +
+    "</div>";
+}
+
+/* ---------------- voyage intelligence ---------------- */
+
+let voyageToken = 0;
+
+async function renderVoyageIntelligence(v) {
+  const token = ++voyageToken;
+  updateEtaCountdown(v);
+  updateVoyageProgress(v);
+  const destEl = $("v-dist");
+  const ocEl = $("v-oncourse");
+  if (!v || !v.destination || !v.position || v.position.lat == null || v.position.lon == null) {
+    if (destEl) destEl.textContent = "—";
+    if (ocEl) ocEl.textContent = "—";
+    return;
+  }
+  const dest = await geocode(v.destination);
+  if (token !== voyageToken) return;
+  if (dest && v.position.lat != null) {
+    const bear = initialBearing(v.position.lat, v.position.lon, dest.lat, dest.lon);
+    const dist = haversine(v.position.lat, v.position.lon, dest.lat, dest.lon);
+    if (destEl) destEl.textContent = "≈ " + Math.round(dist).toLocaleString() + " nm";
+    if (v.position.sog != null && v.position.sog >= 1) {
+      const cog = v.position.cog != null ? v.position.cog : bear;
+      const delta = Math.abs(((cog - bear + 540) % 360) - 180);
+      const ok = delta <= 15;
+      const bad = delta > 40;
+      if (ocEl) {
+        ocEl.textContent = (ok ? "On course" : "Off course") + " · Δ " + Math.round(delta) + "° (→" + Math.round(bear) + "°)";
+        ocEl.className = ok ? "oc-ok" : bad ? "oc-bad" : "oc-amber";
+      }
+    } else if (ocEl) {
+      ocEl.textContent = "Anchored / not moving";
+      ocEl.className = "";
+    }
+  } else {
+    if (destEl) destEl.textContent = "—";
+    if (ocEl) {
+      ocEl.textContent = "—";
+      ocEl.className = "";
+    }
+  }
+}
+
+function updateEtaCountdown(v) {
+  const el = $("v-eta-count");
+  if (!el) return;
+  const eta = parseMdhms(v && v.eta);
+  if (!eta) {
+    el.textContent = "—";
+    el.className = "";
+    return;
+  }
+  const diff = eta.getTime() - Date.now();
+  if (diff <= 0) {
+    el.textContent = "Now (arrived / overdue)";
+    el.className = "oc-amber";
+    return;
+  }
+  el.textContent = "in " + fmtDur(diff);
+  el.className = "";
+}
+
+function updateVoyageProgress(v) {
+  const bar = $("voyage-progress");
+  if (!bar) return;
+  const atd = parseMdhms(v && v.lastPortAtd);
+  const eta = parseMdhms(v && v.eta);
+  if (!atd || !eta || eta.getTime() <= atd.getTime()) {
+    bar.style.display = "none";
+    return;
+  }
+  bar.style.display = "block";
+  const now = Date.now();
+  const pct = Math.min(100, Math.max(0, ((now - atd.getTime()) / (eta.getTime() - atd.getTime())) * 100));
+  const atdEl = $("vp-atd");
+  const etaEl = $("vp-eta");
+  const fill = $("vp-fill");
+  const nowEl = $("vp-now");
+  if (atdEl) atdEl.textContent = "ATD " + fmtHm(localOf(v, atd));
+  if (etaEl) etaEl.textContent = "ETA " + fmtHm(localOf(v, eta));
+  if (fill) fill.style.width = pct + "%";
+  if (nowEl) nowEl.style.left = pct + "%";
+}
+
+/* ---------------- aboard (local time + sun) ---------------- */
+
+function renderAboard(v) {
+  const nameEl = $("aboard-name");
+  if (nameEl) nameEl.textContent = v ? " " + v.name : "";
+  updateAboard(v);
+}
+
+function updateAboard(v) {
+  const clockEl = $("aboard-clock");
+  const scEl = $("sunset-count");
+  if (!v || !v.position || v.position.lat == null) {
+    if (clockEl) clockEl.textContent = "--:--:--";
+    if (scEl) scEl.textContent = "—";
+    return;
+  }
+  const now = new Date();
+  const local = localOf(v, now);
+  if (clockEl) clockEl.textContent = fmtClock(local);
+  const dtEl = $("aboard-date");
+  if (dtEl) dtEl.textContent = local.getUTCDate() + " " + MONTHS[local.getUTCMonth()] + " " + local.getUTCFullYear();
+  const today = sunTimes(v.position.lat, v.position.lon, now);
+  if (!today) {
+    if (scEl) scEl.textContent = "Polar day/night — no sunrise or sunset";
+    return;
+  }
+  const srEl = $("aboard-sunrise");
+  const ssEl = $("aboard-sunset");
+  const dlEl = $("aboard-daylight");
+  if (srEl) srEl.textContent = fmtHm(localOf(v, today.sunrise));
+  if (ssEl) ssEl.textContent = fmtHm(localOf(v, today.sunset));
+  if (dlEl) dlEl.textContent = fmtDur(today.sunset.getTime() - today.sunrise.getTime());
+  const utcNow = now.getTime();
+  let next = null;
+  let label = "";
+  if (utcNow < today.sunrise.getTime()) {
+    next = today.sunrise.getTime();
+    label = "Sunrise in";
+  } else if (utcNow < today.sunset.getTime()) {
+    next = today.sunset.getTime();
+    label = "Sunset in";
+  } else {
+    const tmw = sunTimes(v.position.lat, v.position.lon, new Date(now.getTime() + 86400000));
+    if (tmw) {
+      next = tmw.sunrise.getTime();
+      label = "Sunrise in (tomorrow)";
+    }
+  }
+  if (scEl) scEl.textContent = next ? label + " " + fmtDur(next - utcNow) : "—";
+}
+
+/* ---------------- proximity alerts ---------------- */
+
+const SETTINGS_KEY = "tracker_settings";
+const PROX_ALERT_KEY = "tracker_prox_alerts";
+
+function loadSettings() {
+  try {
+    return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || { notifOn: false, threshold: 10 };
+  } catch (_) {
+    return { notifOn: false, threshold: 10 };
+  }
+}
+function saveSettings() {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings));
+}
+function renderAlertsUI() {
+  const b = $("notif-toggle");
+  if (!b) return;
+  b.textContent = state.settings.notifOn ? "🔔 Alerts on" : "🔕 Alerts off";
+  b.classList.toggle("on", state.settings.notifOn);
+  const sel = $("prox-threshold");
+  if (sel) sel.value = String(state.settings.threshold);
+}
+
+function notify(body) {
+  if (!("Notification" in window)) return;
+  if (Notification.permission === "granted") {
+    try {
+      new Notification("Superyacht Tracker", { body });
+    } catch (_) {}
+  } else if (Notification.permission === "default") {
+    Notification.requestPermission();
+  }
+}
+
+function checkProximity() {
+  const vs = state.vessels.filter((v) => v.position && v.position.lat != null && v.position.lon != null);
+  const th = state.settings.threshold || 10;
+  const enc = [];
+  for (let i = 0; i < vs.length; i++) {
+    for (let j = i + 1; j < vs.length; j++) {
+      const a = vs[i].position;
+      const b = vs[j].position;
+      const d = haversine(a.lat, a.lon, b.lat, b.lon);
+      if (d <= th) {
+        enc.push({ a: vs[i], b: vs[j], d });
+        const key = [vs[i].imo, vs[j].imo].sort().join("-");
+        const last = (state.proxAlerted && state.proxAlerted[key]) || 0;
+        if (Date.now() - last > 3600000) {
+          if (!state.proxAlerted) state.proxAlerted = {};
+          state.proxAlerted[key] = Date.now();
+          const text = vs[i].name + " and " + vs[j].name + " are " + d.toFixed(1) + " nm apart (threshold " + th + " nm)";
+          logEvent(vs[i].imo, vs[i].name, text);
+          if (state.settings.notifOn) notify(text);
+        }
+      }
+    }
+  }
+  const el = $("encounters");
+  if (!el) return;
+  el.innerHTML = enc
+    .map((e) => '<span class="enc-chip">' + e.a.name + " &amp; " + e.b.name + " · " + e.d.toFixed(1) + " nm</span>")
+    .join("");
+}
+
+/* ---------------- ghost track ---------------- */
+
+function renderGhostToggle() {
+  const t = $("ghost-toggle");
+  if (t) t.checked = state.ghostOn;
+}
+$("ghost-toggle").addEventListener("change", (e) => {
+  state.ghostOn = e.target.checked;
+  localStorage.setItem("tracker_ghost", state.ghostOn ? "1" : "0");
+  renderFleetMap();
+});
+$("notif-toggle").addEventListener("click", () => {
+  state.settings.notifOn = !state.settings.notifOn;
+  if (state.settings.notifOn && "Notification" in window && Notification.permission === "default") {
+    Notification.requestPermission();
+  }
+  saveSettings();
+  renderAlertsUI();
+});
+$("prox-threshold").addEventListener("change", (e) => {
+  state.settings.threshold = +e.target.value;
+  saveSettings();
+  checkProximity();
+});
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".discover-add");
+  if (btn) addVessel(btn.getAttribute("data-imo"));
+});
+
+/* ---------------- discovery ---------------- */
+
+const DISCOVER = [
+  { imo: "9693367", name: "Azzam", tag: "181 m · 2013 · World's longest motor yacht", fact: "The longest private motor yacht ever built (180.6 m), launched for a member of the Abu Dhabi royal family." },
+  { imo: "1009613", name: "Eclipse", tag: "162.5 m · 2010", fact: "One of the largest yachts ever built — famed for missile-detection systems and an on-board submarine." },
+  { imo: "9661792", name: "Dilbar", tag: "156 m · 2016 · Largest by volume", fact: "The world's largest yacht by internal volume (15,917 GT); its swimming pool set a Guinness World Record." },
+  { imo: "9692545", name: "Andromeda", tag: "107 m · 2015", fact: "The yacht that started this tracker — a 107 m German-built superyacht." },
+  { imo: "9384552", name: "Maltese Falcon", tag: "87 m · 2006 · DynaRig", fact: "Iconic DynaRig sailing yacht with self-standing carbon masts and about 2,800 m² of sail." },
+];
+
+function renderDiscover() {
+  const grid = $("discover-grid");
+  if (!grid) return;
+  grid.innerHTML = DISCOVER.map(
+    (d) =>
+      '<div class="discover-card">' +
+      '<div class="dc-name">' + d.name + '</div>' +
+      '<div class="dc-tag">' + d.tag + "</div>" +
+      '<p class="dc-fact">' + d.fact + "</p>" +
+      (state.vessels.some((v) => v.imo === d.imo)
+        ? '<button class="mini-btn" disabled>Tracking ✓</button>'
+        : '<button class="mini-btn discover-add" data-imo="' + d.imo + '">+ Track</button>') +
+      "</div>"
+  ).join("");
+}
+
 /* ---------------- fetching ---------------- */
 
 async function fetchVessel(imo) {
@@ -333,6 +822,7 @@ async function refreshVessel(imo) {
     if (i >= 0) state.vessels[i] = v;
     saveData(v);
     logChanges(prev, v);
+    updateStats(v);
     renderFleetStrip();
     renderBoard();
     renderStats();
@@ -345,6 +835,7 @@ async function refreshVessel(imo) {
 async function refreshAll() {
   const imos = state.vessels.map((v) => v.imo);
   await Promise.allSettled(imos.map((imo) => refreshVessel(imo)));
+  checkProximity();
 }
 
 /* ---------------- add / remove / select ---------------- */
@@ -371,6 +862,8 @@ async function addVessel(imo) {
     renderFleetStrip();
     renderBoard();
     renderStats();
+    renderDiscover();
+    checkProximity();
     selectVessel(imo);
     flash("Tracking " + v.name + " (" + imo + ")");
   } catch (err) {
@@ -388,6 +881,8 @@ function removeVessel(imo) {
   renderFleetStrip();
   renderBoard();
   renderStats();
+  renderDiscover();
+  checkProximity();
   if (state.selectedImo === imo) {
     const next = state.vessels[0];
     if (next) selectVessel(next.imo);
@@ -535,6 +1030,9 @@ function renderSelected() {
   fillText("s-region", v ? (v.region || "—") : "—");
 
   renderLiveMap();
+  renderVoyageIntelligence(v);
+  renderInsights(v);
+  renderAboard(v);
   loadWeather(v);
 }
 
@@ -672,6 +1170,36 @@ function renderFleetMap() {
         bounds.push([p.lat, p.lon]);
       }
 
+      if (state.ghostOn) {
+        for (const v of state.vessels) {
+          const pts = [0, 6, 12, 24].map((h) => deadReckon(v, h));
+          if (!pts[0] || !pts[1]) continue;
+          add(
+            L.polyline(pts, {
+              color: "#a78bfa",
+              weight: 2,
+              dashArray: "6 8",
+              opacity: 0.85,
+            })
+          );
+          const end = pts[pts.length - 1];
+          add(
+            L.marker(end, {
+              icon: L.divIcon({
+                className: "",
+                iconSize: [12, 12],
+                iconAnchor: [6, 6],
+                html: '<div class="ghost-end"></div>',
+              }),
+            }).bindPopup(
+              "<strong>" + escapeHtml(v.name) + "</strong><br>Projected position in 24 h<br>≈ " +
+                fmtLatLonPair(end[0], end[1])
+            )
+          );
+          bounds.push(end);
+        }
+      }
+
       if (group) {
         group.addTo(state.fleetMap);
         state.fleetLayers.push(group);
@@ -793,9 +1321,20 @@ async function init() {
   renderBoard();
   renderStats();
   renderTimeline();
+  renderAlertsUI();
+  renderGhostToggle();
+  renderDiscover();
+  checkProximity();
   renderSelected();
   refreshAll();
   setInterval(updateLastReport, 30000);
+  setInterval(() => {
+    const v = selected();
+    if (v) {
+      updateEtaCountdown(v);
+      updateAboard(v);
+    }
+  }, 1000);
   setInterval(() => {
     if (document.visibilityState === "visible") refreshAll();
   }, 5 * 60 * 1000);

@@ -20,6 +20,7 @@
         <a href="#map">Map</a>
         <a href="#board">Fleet</a>
         <a href="#timeline">Activity</a>
+        <a href="#discover">Discover</a>
       </nav>
       <select class="theme-select" id="theme-select" aria-label="Colour theme" title="Colour theme">
         <option value="midnight">🌙 Midnight</option>
@@ -39,6 +40,18 @@
     <div class="fleet-scroll" id="fleet-scroll"></div>
     <p class="fleet-hint" id="fleet-hint">No vessels tracked yet — add one by IMO number above.</p>
     <div class="stats-bar" id="stats-bar"></div>
+    <div class="alerts-row">
+      <button class="mini-btn" id="notif-toggle">🔕 Alerts off</button>
+      <label class="dim">within
+        <select id="prox-threshold">
+          <option value="5">5 nm</option>
+          <option value="10" selected>10 nm</option>
+          <option value="25">25 nm</option>
+          <option value="50">50 nm</option>
+        </select>
+      </label>
+      <span id="encounters"></span>
+    </div>
   </section>
 
   <section class="hero">
@@ -103,9 +116,15 @@
     <section id="map" class="card map-card">
       <div class="card-head">
         <h2>Position &amp; Tracking</h2>
-        <div class="tabs">
-          <button class="tab active" id="tab-live">Live track</button>
-          <button class="tab" id="tab-fleet">Fleet view</button>
+        <div class="head-right">
+          <div class="tabs">
+            <button class="tab active" id="tab-live">Live track</button>
+            <button class="tab" id="tab-fleet">Fleet view</button>
+          </div>
+          <label class="ghost-toggle" title="Project each vessel's future position from heading & speed">
+            <input type="checkbox" id="ghost-toggle">
+            <span class="ghost-label">👻 Ghost track</span>
+          </label>
         </div>
       </div>
       <div id="map-live" class="map-wrap">
@@ -154,11 +173,14 @@
 
     <section class="grid-2">
       <div class="card">
-        <div class="card-head"><h2>Voyage</h2></div>
+        <div class="card-head"><h2>Voyage Intelligence</h2></div>
         <table class="kv">
           <tbody>
             <tr><td>Destination</td><td id="v-dest">—</td></tr>
             <tr><td>ETA</td><td id="v-eta">—</td></tr>
+            <tr><td>Arrives in</td><td id="v-eta-count">—</td></tr>
+            <tr><td>On course</td><td id="v-oncourse">—</td></tr>
+            <tr><td>To destination</td><td id="v-dist">—</td></tr>
             <tr><td>Navigation status</td><td id="v-status">—</td></tr>
             <tr><td>Speed over ground</td><td><span id="v-sog">—</span> kn</td></tr>
             <tr><td>Course over ground</td><td><span id="v-cog">—</span>°</td></tr>
@@ -167,6 +189,11 @@
             <tr><td>Last port</td><td id="v-lastport">—</td></tr>
           </tbody>
         </table>
+        <div class="voyage-progress" id="voyage-progress">
+          <div class="vp-track"><div class="vp-fill" id="vp-fill"></div><span class="vp-now" id="vp-now"></span></div>
+          <div class="vp-labels"><span id="vp-atd">—</span><span id="vp-eta">—</span></div>
+        </div>
+        <p class="card-note">"On course" compares the vessel's heading with the bearing to its destination (geocoded via OpenStreetMap).</p>
       </div>
 
       <div class="card">
@@ -225,6 +252,28 @@
       <p class="card-note">Particulars from public AIS registries (VesselFinder). Some fields may be blank for vessels with limited registry data.</p>
     </section>
 
+    <section class="grid-2">
+      <div class="card">
+        <div class="card-head"><h2>Behavioral Insights</h2><span class="dim" id="insights-seen"></span></div>
+        <div id="insights-body" class="insights">
+          <p class="tl-empty">Insights build up as this app watches each vessel (status &amp; speed sampled every ~5 min).</p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Aboard <span id="aboard-name"></span></h2></div>
+        <div class="clock" id="aboard-clock">--:--:--</div>
+        <table class="kv">
+          <tbody>
+            <tr><td>Local date</td><td id="aboard-date">—</td></tr>
+            <tr><td>Sunrise</td><td id="aboard-sunrise">—</td></tr>
+            <tr><td>Sunset</td><td id="aboard-sunset">—</td></tr>
+            <tr><td>Daylight</td><td id="aboard-daylight">—</td></tr>
+          </tbody>
+        </table>
+        <div class="sunset-count" id="sunset-count">—</div>
+      </div>
+    </section>
+
     <section id="weather" class="card">
       <div class="card-head">
         <h2>Weather at Position</h2>
@@ -237,6 +286,11 @@
         <div class="w-item"><span class="w-icon">💨</span><span class="w-val" id="w-gust">—</span><span class="w-label">Wind gusts</span></div>
       </div>
       <p class="card-note">Weather from Open-Meteo for the vessel's reported area. Updates periodically.</p>
+    </section>
+
+    <section id="discover" class="card">
+      <div class="card-head"><h2>Discover famous superyachts</h2></div>
+      <div class="discover-grid" id="discover-grid"></div>
     </section>
 
   </main>

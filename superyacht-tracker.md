@@ -32,6 +32,14 @@ Web app that tracks vessels (starting with superyacht ANDROMEDA, IMO 9692545) by
 - Upgraded fleet map: heading-rotated boat markers, colour-coded by status, position-uncertainty circles, marker clustering
 - Activity timeline: records nav-status, speed (≥1 kn) and destination changes observed during refreshes
 
+**Unique features (requested as "nothing else has this")**
+- Ghost-track prediction: dead-reckons each vessel's future position (6/12/24 h) from COG/SOG and draws the projected path as a dashed line on the fleet map
+- Voyage intelligence: live ETA countdown, bearing-to-destination vs COG ("on course/off course · Δ°", via OpenStreetMap geocoding), distance-to-destination, ATD→ETA voyage progress bar
+- Behavioral insights: per-vessel % time at anchor/under way, distance covered, avg/top speed, longest anchor, arrivals/departures — computed from this app's own observation history
+- Proximity alerts: browser notifications + timeline events when two tracked vessels come within X nm (5/10/25/50), with current-encounter chips
+- Aboard ambient: live local time at the vessel (from longitude) + NOAA sunrise/sunset at its position with a "sunset in …" countdown
+- Discover tab: curated famous superyachts (Azzam, Eclipse, Dilbar, Andromeda, Maltese Falcon) with one-click tracking and fun facts
+
 **Themes**
 - 4 switchable colour themes (Midnight / Daylight / Emerald / Sunset) via CSS custom properties + topbar dropdown, persisted in localStorage
 
