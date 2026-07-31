@@ -799,28 +799,77 @@ document.addEventListener("click", (e) => {
 /* ---------------- discovery ---------------- */
 
 const DISCOVER = [
-  { imo: "9693367", name: "Azzam", tag: "181 m · 2013 · World's longest motor yacht", fact: "The longest private motor yacht ever built (180.6 m), launched for a member of the Abu Dhabi royal family." },
+  { imo: "9693367", name: "Azzam", tag: "181 m · 2013", fact: "The longest private motor yacht ever built (180.6 m), launched for a member of the Abu Dhabi royal family." },
   { imo: "1009613", name: "Eclipse", tag: "162.5 m · 2010", fact: "One of the largest yachts ever built — famed for missile-detection systems and an on-board submarine." },
-  { imo: "9661792", name: "Dilbar", tag: "156 m · 2016 · Largest by volume", fact: "The world's largest yacht by internal volume (15,917 GT); its swimming pool set a Guinness World Record." },
+  { imo: "9661792", name: "Dilbar", tag: "156 m · 2016", fact: "The world's largest yacht by internal volume (15,917 GT); its swimming pool set a Guinness World Record." },
   { imo: "9692545", name: "Andromeda", tag: "107 m · 2015", fact: "The yacht that started this tracker — a 107 m German-built superyacht." },
-  { imo: "9384552", name: "Maltese Falcon", tag: "87 m · 2006 · DynaRig", fact: "Iconic DynaRig sailing yacht with self-standing carbon masts and about 2,800 m² of sail." },
+  { imo: "9384552", name: "Maltese Falcon", tag: "87 m · 2006", fact: "Iconic DynaRig sailing yacht with self-standing carbon masts and about 2,800 m² of sail." },
+  { imo: "9785108", name: "Crescent", tag: "135.6 m · 2018", fact: "A 135.6 m superyacht built by Lürssen in 2018 — one of the largest yachts in the world." },
+  { imo: "8977273", name: "Pelorus", tag: "115 m · 2003", fact: "A 115 m classic built by Blohm+Voss in 2003 — for years linked to Roman Abramovich." },
+  { imo: "1013030", name: "Bold", tag: "85 m · 2019", fact: "An 85 m aluminium explorer by Silver Yachts, built 2019 — designed for research and adventure." },
+  { imo: "1009912", name: "Victorious", tag: "77 m · 2021", fact: "A 77 m explorer-style superyacht built by Kleven in 2021." },
+  { imo: "9679830", name: "Illusion", tag: "65 m · 2013", fact: "A 65 m yacht built by Nobiskrug in 2013." },
+  { imo: "1013054", name: "Laurentia", tag: "55 m · 2017", fact: "A 55 m Feadship expedition-style motor yacht launched in 2017." },
+  { imo: "6618823", name: "Sherakhan", tag: "64 m · 1966", fact: "A 64 m motor yacht built in 1966 — one of the world's oldest large yachts still cruising." },
 ];
+
+const DISCOVER_N = 6;
+let shuffleSeed = null;
+
+function mulberry32(a) {
+  return function () {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function seededPick(arr, n, seed) {
+  const a = arr.slice();
+  const rand = mulberry32(seed >>> 0);
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a.slice(0, n);
+}
+function rotationBucket() {
+  return Math.floor(Date.now() / 3600000);
+}
 
 function renderDiscover() {
   const grid = $("discover-grid");
   if (!grid) return;
-  grid.innerHTML = DISCOVER.map(
-    (d) =>
-      '<div class="discover-card">' +
-      '<div class="dc-name">' + d.name + '</div>' +
-      '<div class="dc-tag">' + t(d.tag) + "</div>" +
-      '<p class="dc-fact">' + t(d.fact) + "</p>" +
-      (state.vessels.some((v) => v.imo === d.imo)
-        ? '<button class="mini-btn" disabled>' + t("Tracking ✓") + "</button>"
-        : '<button class="mini-btn discover-add" data-imo="' + d.imo + '">' + t("Track") + "</button>") +
-      "</div>"
-  ).join("");
+  const seed = shuffleSeed !== null ? shuffleSeed : rotationBucket();
+  const picked = seededPick(DISCOVER, DISCOVER_N, seed);
+  grid.innerHTML = picked
+    .map(
+      (d) =>
+        '<div class="discover-card">' +
+        '<div class="dc-name">' + d.name + '</div>' +
+        '<div class="dc-tag">' + t(d.tag) + "</div>" +
+        '<p class="dc-fact">' + t(d.fact) + "</p>" +
+        (state.vessels.some((v) => v.imo === d.imo)
+          ? '<button class="mini-btn" disabled>' + t("Tracking ✓") + "</button>"
+          : '<button class="mini-btn discover-add" data-imo="' + d.imo + '">' + t("Track") + "</button>") +
+        "</div>"
+    )
+    .join("");
+  const note = $("discover-note");
+  if (note) {
+    if (shuffleSeed !== null) {
+      note.textContent = t("Shuffled — refresh to reset");
+    } else {
+      const mins = 60 - new Date().getMinutes();
+      note.textContent = t("New yachts every hour") + " · " + tF("Next rotation in {t}", { t: fmtDur(mins * 60000) });
+    }
+  }
 }
+$("shuffle-btn").addEventListener("click", () => {
+  shuffleSeed = Math.floor(Math.random() * 1e9);
+  renderDiscover();
+});
 
 /* ---------------- language / i18n ---------------- */
 
@@ -914,6 +963,15 @@ const I18N = {
     "Voyage history": "Historia rejsu", "No voyage history recorded yet.": "Brak historii rejsu.",
     "🔗 Share fleet": "🔗 Udostępnij flotę", "Fleet link copied to clipboard": "Skopiowano link do floty",
     "▶ Replay": "▶ Odtwórz", "Centre: {name}": "Środek: {name}",
+    "Shuffle": "Losuj", "New yachts every hour": "Nowe jachty co godzinę",
+    "Next rotation in {t}": "Następna rotacja za {t}", "Shuffled — refresh to reset": "Wylosowano — odśwież, aby zresetować",
+    "A 135.6 m superyacht built by Lürssen in 2018 — one of the largest yachts in the world.": "135,6-metrowy superjacht zbudowany przez Lürssen w 2018 r. — jeden z największych jachtów świata.",
+    "A 115 m classic built by Blohm+Voss in 2003 — for years linked to Roman Abramovich.": "115-metrowa klasyka z Blohm+Voss z 2003 r. — przez lata związana z Romanem Abramowiczem.",
+    "An 85 m aluminium explorer by Silver Yachts, built 2019 — designed for research and adventure.": "85-metrowy aluminiowy explorer firmy Silver Yachts z 2019 r. — zaprojektowany do badań i przygód.",
+    "A 77 m explorer-style superyacht built by Kleven in 2021.": "77-metrowy superjacht w stylu ekspedycyjnym zbudowany przez Kleven w 2021 r.",
+    "A 65 m yacht built by Nobiskrug in 2013.": "65-metrowy jacht zbudowany przez Nobiskrug w 2013 r.",
+    "A 55 m Feadship expedition-style motor yacht launched in 2017.": "55-metrowy jacht motorowy Feadship w stylu ekspedycyjnym, zwodowany w 2017 r.",
+    "A 64 m motor yacht built in 1966 — one of the world's oldest large yachts still cruising.": "64-metrowy jacht motorowy z 1966 r. — jeden z najstarszych dużych jachtów świata wciąż pływających.",
   },
   it: {
     "Map": "Mappa", "Fleet": "Flotta", "Activity": "Attività", "Discover": "Scopri",
@@ -998,6 +1056,15 @@ const I18N = {
     "Voyage history": "Cronologia viaggio", "No voyage history recorded yet.": "Nessuna cronologia di viaggio registrata.",
     "🔗 Share fleet": "🔗 Condividi flotta", "Fleet link copied to clipboard": "Link flotta copiato negli appunti",
     "▶ Replay": "▶ Riproduci", "Centre: {name}": "Centro: {name}",
+    "Shuffle": "Mescola", "New yachts every hour": "Nuovi yacht ogni ora",
+    "Next rotation in {t}": "Prossima rotazione tra {t}", "Shuffled — refresh to reset": "Miscelato — aggiorna per azzerare",
+    "A 135.6 m superyacht built by Lürssen in 2018 — one of the largest yachts in the world.": "Un superyacht di 135,6 m costruito da Lürssen nel 2018 — uno dei più grandi yacht al mondo.",
+    "A 115 m classic built by Blohm+Voss in 2003 — for years linked to Roman Abramovich.": "Un classico di 115 m costruito da Blohm+Voss nel 2003 — a lungo legato a Roman Abramovich.",
+    "An 85 m aluminium explorer by Silver Yachts, built 2019 — designed for research and adventure.": "Un explorer in alluminio di 85 m di Silver Yachts, costruito nel 2019 — progettato per ricerca e avventura.",
+    "A 77 m explorer-style superyacht built by Kleven in 2021.": "Un superyacht da 77 m in stile explorer costruito da Kleven nel 2021.",
+    "A 65 m yacht built by Nobiskrug in 2013.": "Uno yacht di 65 m costruito da Nobiskrug nel 2013.",
+    "A 55 m Feadship expedition-style motor yacht launched in 2017.": "Uno yacht a motore Feadship da 55 m in stile expedition, varato nel 2017.",
+    "A 64 m motor yacht built in 1966 — one of the world's oldest large yachts still cruising.": "Uno yacht a motore di 64 m costruito nel 1966 — uno dei più antichi grandi yacht del mondo ancora in navigazione.",
   },
 };
 
@@ -1944,6 +2011,7 @@ async function init() {
   setInterval(() => {
     if (document.visibilityState === "visible") refreshAll();
   }, 5 * 60 * 1000);
+  setInterval(renderDiscover, 60000);
 }
 
 init();
