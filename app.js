@@ -1761,7 +1761,7 @@ function setStatusPill(status) {
 
 function renderSelected() {
   const v = selected();
-  document.title = v ? v.name + " — Superyacht Tracker" : "Superyacht Tracker";
+  document.title = "Superyacht Tracker";
 
   fillText("vessel-name", v ? v.name : t("No vessel selected"));
   fillText("vessel-type", v ? (v.type || t("Vessel")) : "—");
