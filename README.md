@@ -36,8 +36,8 @@ Live demo: **https://superyacht-tracker.onrender.com**
 - **Aboard ambient** — live local time at the vessel, sunrise/sunset at its position (NOAA solar calc), and a "sunset in …" countdown
 - **Weather at position** — live temperature, wind and gusts via Open-Meteo
 
-### Themes
-Four switchable colour themes (Midnight, Daylight, Emerald, Sunset) via the top-bar dropdown, persisted between visits.
+### Themes & languages
+Four switchable colour themes (Midnight, Daylight, Emerald, Sunset) via the top-bar dropdown, plus a language switch for **English, Polski and Italiano** — both persisted between visits.
 
 ---
 

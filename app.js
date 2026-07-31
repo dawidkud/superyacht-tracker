@@ -7,16 +7,6 @@
 
 const $ = (id) => document.getElementById(id);
 
-const PHOTO_FALLBACK =
-  "data:image/svg+xml;utf8," +
-  encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="520">' +
-      '<rect width="100%" height="100%" fill="#131e31"/>' +
-      '<text x="50%" y="50%" font-size="130" text-anchor="middle" dominant-baseline="middle">⚓</text>' +
-      '<text x="50%" y="62%" font-size="26" fill="#8fa2bd" text-anchor="middle">No photo available</text>' +
-      "</svg>"
-  );
-
 const state = {
   vessels: [], // [{ imo, ...vessel }]
   selectedImo: null,
@@ -111,12 +101,12 @@ function relativeTime(d) {
   if (!d) return "—";
   const diff = Math.max(0, Date.now() - d.getTime());
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return mins + " min ago";
+  if (mins < 1) return t("just now");
+  if (mins < 60) return mins + " " + t("min ago");
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return hrs + " h ago";
+  if (hrs < 24) return hrs + " " + t("h ago");
   const days = Math.floor(hrs / 24);
-  return days + " day" + (days > 1 ? "s" : "") + " ago";
+  return days + " " + t("d ago");
 }
 function lastSeenDate(v) {
   if (!v || !v.lastSeen) return null;
@@ -278,15 +268,15 @@ function logEvent(imo, name, text) {
 function logChanges(prev, v) {
   if (!prev) return;
   if (prev.navStatus !== v.navStatus && v.navStatus) {
-    logEvent(v.imo, v.name, "Nav status: " + (prev.navStatus || "—") + " → " + v.navStatus);
+    logEvent(v.imo, v.name, t("Nav status:") + " " + trStatus(prev.navStatus) + " → " + trStatus(v.navStatus));
   }
   const ps = prev.position && prev.position.sog;
   const ns = v.position && v.position.sog;
   if (ns != null && ps != null && Math.abs(ns - ps) >= 1) {
-    logEvent(v.imo, v.name, "Speed: " + ps.toFixed(1) + " → " + ns.toFixed(1) + " kn");
+    logEvent(v.imo, v.name, t("Speed:") + " " + ps.toFixed(1) + " → " + ns.toFixed(1) + " kn");
   }
   if (prev.destination !== v.destination && v.destination) {
-    logEvent(v.imo, v.name, "Destination: " + (prev.destination || "—") + " → " + v.destination);
+    logEvent(v.imo, v.name, t("Destination:") + " " + (prev.destination || "—") + " → " + v.destination);
   }
 }
 function renderTimeline() {
@@ -294,7 +284,7 @@ function renderTimeline() {
   const evs = loadEvents();
   if (!evs.length) {
     el.innerHTML =
-      '<p class="tl-empty">No activity recorded yet — events appear as vessels update (status, speed or destination changes).</p>';
+      '<p class="tl-empty">' + t("No activity recorded yet — events appear as vessels update (status, speed or destination changes).") + "</p>";
     return;
   }
   el.innerHTML = evs
@@ -333,10 +323,10 @@ function renderStats() {
   const moving = vs.filter((v) => v.position && v.position.sog != null);
   const avg = moving.length ? (moving.reduce((s, v) => s + v.position.sog, 0) / moving.length).toFixed(1) : "—";
   const chips = [
-    { label: "Tracked", value: total, dot: "blue" },
-    { label: "Under way", value: u, dot: "green" },
-    { label: "At anchor", value: r, dot: "amber" },
-    { label: "Avg SOG", value: avg, dot: "blue" },
+    { label: t("Tracked"), value: total, dot: "blue" },
+    { label: t("Under way"), value: u, dot: "green" },
+    { label: t("At anchor"), value: r, dot: "amber" },
+    { label: t("Avg SOG"), value: avg, dot: "blue" },
   ];
   bar.innerHTML = chips
     .map(
@@ -388,10 +378,10 @@ function renderBoard() {
       const cog = v.position && v.position.cog != null ? Math.round(v.position.cog) : "—";
       return (
         '<tr class="' + active + '" data-imo="' + v.imo + '">' +
-        '<td><div class="vcell"><img class="thumb" src="' + (v.photo || PHOTO_FALLBACK) + '" alt="">' +
+        '<td><div class="vcell"><img class="thumb" src="' + (v.photo || photoFallback()) + '" alt="">' +
         '<div><span class="vname">' + escapeHtml(v.name) + '</span><span class="vimo">IMO ' + v.imo + "</span></div></div></td>" +
-        "<td>" + escapeHtml(v.type || "—") + "</td>" +
-        '<td><span class="status-cell"><span class="dot ' + DOT_CLASS[cat] + '"></span>' + escapeHtml(v.navStatus || "—") + "</span></td>" +
+        "<td>" + escapeHtml(v.type || t("Vessel")) + "</td>" +
+        '<td><span class="status-cell"><span class="dot ' + DOT_CLASS[cat] + '"></span>' + escapeHtml(trStatus(v.navStatus)) + "</span></td>" +
         '<td class="tnum">' + sog + "</td>" +
         '<td class="tnum">' + cog + "°</td>" +
         "<td>" + escapeHtml(v.destination || "—") + "</td>" +
@@ -402,7 +392,7 @@ function renderBoard() {
     })
     .join("");
 
-  fillText("board-count", list.length + " vessel" + (list.length === 1 ? "" : "s"));
+  fillText("board-count", nVessels(list.length));
 }
 $("board-body").addEventListener("click", (e) => {
   const tr = e.target.closest("tr[data-imo]");
@@ -528,25 +518,25 @@ function renderInsights(v) {
   if (!body) return;
   const st = v ? loadStats(v.imo) : null;
   if (!st || st.observedMs < 10 * 60000) {
-    if (seen) seen.textContent = st ? "just started watching" : "";
+    if (seen) seen.textContent = st ? t("just started watching") : "";
     body.innerHTML =
-      '<p class="tl-empty">Insights build up as this app watches the vessel (status &amp; speed sampled every ~5 min). Check back after a while.</p>';
+      '<p class="tl-empty">' + t("Insights build up as this app watches the vessel (status & speed sampled every ~5 min). Check back after a while.") + "</p>";
     return;
   }
   const tot = st.observedMs || 1;
   const ap = (st.anchoredMs / tot) * 100;
   const up = (st.underwayMs / tot) * 100;
-  if (seen) seen.textContent = "tracked for " + fmtDur(Date.now() - st.firstSeen);
+  if (seen) seen.textContent = t("tracked for") + " " + fmtDur(Date.now() - st.firstSeen);
   body.innerHTML =
-    '<div class="ins-bar"><span class="ib-label">At anchor</span><div class="ib-track"><div class="ib-fill amber" style="width:' + ap.toFixed(0) + '%"></div></div><b>' + ap.toFixed(0) + "%</b></div>" +
-    '<div class="ins-bar"><span class="ib-label">Under way</span><div class="ib-track"><div class="ib-fill green" style="width:' + up.toFixed(0) + '%"></div></div><b>' + up.toFixed(0) + "%</b></div>" +
+    '<div class="ins-bar"><span class="ib-label">' + t("At anchor") + '</span><div class="ib-track"><div class="ib-fill amber" style="width:' + ap.toFixed(0) + '%"></div></div><b>' + ap.toFixed(0) + "%</b></div>" +
+    '<div class="ins-bar"><span class="ib-label">' + t("Under way") + '</span><div class="ib-track"><div class="ib-fill green" style="width:' + up.toFixed(0) + '%"></div></div><b>' + up.toFixed(0) + "%</b></div>" +
     '<div class="ins-grid">' +
-    insCell("Distance covered", Math.round(st.distanceNm).toLocaleString() + " nm") +
-    insCell("Avg speed", (st.sogN ? (st.sogSum / st.sogN).toFixed(1) : "—") + " kn") +
-    insCell("Top speed", st.maxSog ? st.maxSog.toFixed(1) + " kn" : "—") +
-    insCell("Longest anchor", fmtDur(st.longestAnchorMs)) +
-    insCell("Arrivals", st.arrivals) +
-    insCell("Departures", st.departures) +
+    insCell(t("Distance covered"), Math.round(st.distanceNm).toLocaleString() + " nm") +
+    insCell(t("Avg speed"), (st.sogN ? (st.sogSum / st.sogN).toFixed(1) : "—") + " kn") +
+    insCell(t("Top speed"), st.maxSog ? st.maxSog.toFixed(1) + " kn" : "—") +
+    insCell(t("Longest anchor"), fmtDur(st.longestAnchorMs)) +
+    insCell(t("Arrivals"), st.arrivals) +
+    insCell(t("Departures"), st.departures) +
     "</div>";
 }
 
@@ -577,11 +567,11 @@ async function renderVoyageIntelligence(v) {
       const ok = delta <= 15;
       const bad = delta > 40;
       if (ocEl) {
-        ocEl.textContent = (ok ? "On course" : "Off course") + " · Δ " + Math.round(delta) + "° (→" + Math.round(bear) + "°)";
+        ocEl.textContent = (ok ? t("On course") : t("Off course")) + " · Δ " + Math.round(delta) + "° (→" + Math.round(bear) + "°)";
         ocEl.className = ok ? "oc-ok" : bad ? "oc-bad" : "oc-amber";
       }
     } else if (ocEl) {
-      ocEl.textContent = "Anchored / not moving";
+      ocEl.textContent = t("Anchored / not moving");
       ocEl.className = "";
     }
   } else {
@@ -604,11 +594,11 @@ function updateEtaCountdown(v) {
   }
   const diff = eta.getTime() - Date.now();
   if (diff <= 0) {
-    el.textContent = "Now (arrived / overdue)";
+    el.textContent = t("Now (arrived / overdue)");
     el.className = "oc-amber";
     return;
   }
-  el.textContent = "in " + fmtDur(diff);
+  el.textContent = tF("in {x}", { x: fmtDur(diff) });
   el.className = "";
 }
 
@@ -657,7 +647,7 @@ function updateAboard(v) {
   if (dtEl) dtEl.textContent = local.getUTCDate() + " " + MONTHS[local.getUTCMonth()] + " " + local.getUTCFullYear();
   const today = sunTimes(v.position.lat, v.position.lon, now);
   if (!today) {
-    if (scEl) scEl.textContent = "Polar day/night — no sunrise or sunset";
+    if (scEl) scEl.textContent = t("Polar day/night — no sunrise or sunset");
     return;
   }
   const srEl = $("aboard-sunrise");
@@ -671,15 +661,15 @@ function updateAboard(v) {
   let label = "";
   if (utcNow < today.sunrise.getTime()) {
     next = today.sunrise.getTime();
-    label = "Sunrise in";
+    label = t("Sunrise in");
   } else if (utcNow < today.sunset.getTime()) {
     next = today.sunset.getTime();
-    label = "Sunset in";
+    label = t("Sunset in");
   } else {
     const tmw = sunTimes(v.position.lat, v.position.lon, new Date(now.getTime() + 86400000));
     if (tmw) {
       next = tmw.sunrise.getTime();
-      label = "Sunrise in (tomorrow)";
+      label = t("Sunrise in (tomorrow)");
     }
   }
   if (scEl) scEl.textContent = next ? label + " " + fmtDur(next - utcNow) : "—";
@@ -703,7 +693,7 @@ function saveSettings() {
 function renderAlertsUI() {
   const b = $("notif-toggle");
   if (!b) return;
-  b.textContent = state.settings.notifOn ? "🔔 Alerts on" : "🔕 Alerts off";
+  b.textContent = state.settings.notifOn ? t("🔔 Alerts on") : t("🔕 Alerts off");
   b.classList.toggle("on", state.settings.notifOn);
   const sel = $("prox-threshold");
   if (sel) sel.value = String(state.settings.threshold);
@@ -736,7 +726,7 @@ function checkProximity() {
         if (Date.now() - last > 3600000) {
           if (!state.proxAlerted) state.proxAlerted = {};
           state.proxAlerted[key] = Date.now();
-          const text = vs[i].name + " and " + vs[j].name + " are " + d.toFixed(1) + " nm apart (threshold " + th + " nm)";
+          const text = tF("closeApproach", { a: vs[i].name, b: vs[j].name, d: d.toFixed(1), th });
           logEvent(vs[i].imo, vs[i].name, text);
           if (state.settings.notifOn) notify(text);
         }
@@ -796,13 +786,276 @@ function renderDiscover() {
     (d) =>
       '<div class="discover-card">' +
       '<div class="dc-name">' + d.name + '</div>' +
-      '<div class="dc-tag">' + d.tag + "</div>" +
-      '<p class="dc-fact">' + d.fact + "</p>" +
+      '<div class="dc-tag">' + t(d.tag) + "</div>" +
+      '<p class="dc-fact">' + t(d.fact) + "</p>" +
       (state.vessels.some((v) => v.imo === d.imo)
-        ? '<button class="mini-btn" disabled>Tracking ✓</button>'
-        : '<button class="mini-btn discover-add" data-imo="' + d.imo + '">+ Track</button>') +
+        ? '<button class="mini-btn" disabled>' + t("Tracking ✓") + "</button>"
+        : '<button class="mini-btn discover-add" data-imo="' + d.imo + '">' + t("Track") + "</button>") +
       "</div>"
   ).join("");
+}
+
+/* ---------------- language / i18n ---------------- */
+
+const LANG_KEY = "tracker_lang";
+let LANG = (() => {
+  const v = localStorage.getItem(LANG_KEY);
+  return v === "pl" || v === "it" ? v : "en";
+})();
+
+const I18N = {
+  pl: {
+    "Map": "Mapa", "Fleet": "Flota", "Activity": "Aktywność", "Discover": "Odkryj",
+    "🌙 Midnight": "🌙 Północ", "☀️ Daylight": "☀️ Dzień", "🌿 Emerald": "🌿 Szmaragd", "🌇 Sunset": "🌇 Zachód słońca",
+    "Add vessel by IMO… e.g. 9692545": "Dodaj jednostkę po IMO… np. 9692545",
+    "+ Track": "+ Śledź",
+    "No vessels tracked yet — add one by IMO number above.": "Brak śledzonych jednostek — dodaj jedną po numerze IMO powyżej.",
+    "Tracked": "Śledzone", "Under way": "W drodze", "At anchor": "Na kotwicy", "Avg SOG": "Śr. prędkość",
+    "🔕 Alerts off": "🔕 Alerty wył.", "🔔 Alerts on": "🔔 Alerty wł.", "within": "w promieniu",
+    "Length": "Długość", "Beam": "Szerokość", "Gross Tons": "Pojemność GT", "Built": "Rok budowy",
+    "Navigation status": "Status nawigacji", "Region": "Region",
+    "Speed / Course": "Prędkość / Kurs", "Destination": "Przeznaczenie",
+    "Live track": "Śledzenie na żywo", "Fleet view": "Widok floty",
+    "👻 Ghost track": "👻 Trasa przewidywana",
+    "Position & Tracking": "Pozycja i śledzenie",
+    "Live AIS position and 24 h track of the selected vessel via VesselFinder · Map data © OpenStreetMap contributors": "Pozycja AIS na żywo i 24-godzinna trasa wybranej jednostki (VesselFinder) · Dane mapy © OpenStreetMap",
+    "Fleet overview — boat markers are rotated to heading and colour-coded by status; circles show the ~1° position uncertainty of the free AIS feed. Use Live track for the precise track of a selected vessel.": "Przegląd floty — znaczniki obrócone zgodnie z kursem i pokolorowane wg statusu; koła pokazują niepewność pozycji (~1°) darmowego kanału AIS. Użyj „Śledzenia na żywo” dla dokładnej trasy.",
+    "Select or add a vessel to see its live position and track.": "Wybierz lub dodaj jednostkę, aby zobaczyć jej pozycję i trasę.",
+    "Could not load the fleet map (Leaflet CDN unreachable).": "Nie można załadować mapy floty (CDN Leaflet niedostępny).",
+    "Voyage Intelligence": "Inteligencja rejsu", "ETA": "ETA", "Arrives in": "Przybędzie za",
+    "On course": "Zgodny z kursem", "Off course": "Poza kursem", "Anchored / not moving": "Na kotwicy / bez ruchu",
+    "To destination": "Do celu", "Speed over ground": "Prędkość nad dnem",
+    "Course over ground": "Kurs nad dnem", "Current draught": "Aktualne zanurzenie",
+    "Position received": "Pozycja odebrana", "Last port": "Ostatni port", "ATD": "ATD", "ETA_": "ETA",
+    "On course: heading vs the bearing to destination (geocoded via OpenStreetMap).": "„Zgodny z kursem” porównuje kurs jednostki z namiarem na cel (geokodowany przez OpenStreetMap).",
+    "Identification": "Identyfikacja", "Vessel name": "Nazwa jednostki", "IMO number": "Numer IMO",
+    "MMSI": "MMSI", "Callsign": "Znak wywoławczy", "Ship type": "Typ jednostki",
+    "Flag state": "Państwo bandery", "Approx. position": "Przybliżona pozycja", "Data source": "Źródło danych",
+    "Vessel Particulars": "Dane techniczne", "Dimensions": "Wymiary", "Tonnage": "Tonaż", "General": "Ogólne",
+    "Length overall": "Długość całkowita", "Draught": "Zanurzenie", "Draft from voyage": "Zanurzenie (rejs)",
+    "Gross tonnage": "Pojemność brutto", "Net tonnage": "Pojemność netto", "Deadweight": "Nośność",
+    "Year of build": "Rok budowy",
+    "Particulars from public AIS registries (VesselFinder). Some fields may be blank for vessels with limited registry data.": "Dane z publicznych rejestrów AIS (VesselFinder). Niektóre pola mogą być puste.",
+    "Behavioral Insights": "Analiza zachowania", "just started watching": "dopiero rozpoczęto obserwację",
+    "Insights build up as this app watches the vessel (status & speed sampled every ~5 min). Check back after a while.": "Analiza rośnie, gdy aplikacja obserwuje jednostkę (status i prędkość próbkowane co ~5 min). Zajrzyj później.",
+    "tracked for": "śledzona przez", "Distance covered": "Przebyty dystans",
+    "Avg speed": "Śr. prędkość", "Top speed": "Maks. prędkość", "Longest anchor": "Najdłuższa kotwica",
+    "Arrivals": "Przybycia", "Departures": "Odejścia",
+    "Aboard": "Na pokładzie", "Local date": "Lokalna data", "Sunrise": "Wschód słońca",
+    "Sunset": "Zachód słońca", "Daylight": "Długość dnia",
+    "Sunrise in": "Wschód słońca za", "Sunset in": "Zachód słońca za", "Sunrise in (tomorrow)": "Wschód słońca za (jutro)",
+    "Polar day/night — no sunrise or sunset": "Dzień/noc polarna — brak wschodu i zachodu słońca",
+    "Weather at Position": "Pogoda na pozycji", "Air temp": "Temperatura", "Wind speed": "Wiatr",
+    "Wind dir": "Kierunek wiatru", "Wind gusts": "Porywy",
+    "Weather from Open-Meteo for the vessel's reported area. Updates periodically.": "Pogoda z Open-Meteo dla rejonu jednostki. Odświeżanie okresowe.",
+    "Vessel": "Jednostka", "Type": "Typ", "Status": "Status", "Last update": "Ostatnia aktualizacja",
+    "Click a row to focus the vessel · Click column headers to sort.": "Kliknij wiersz, aby skupić się na jednostce · Kliknij nagłówki kolumn, aby sortować.",
+    "Fleet Board": "Tabela floty", "Fleet Activity": "Aktywność floty", "Clear": "Wyczyść",
+    "Events are recorded as this app observes each vessel during refreshes (status, speed and destination changes).": "Zdarzenia są rejestrowane podczas odświeżeń (zmiany statusu, prędkości lub celu).",
+    "No activity recorded yet — events appear as vessels update (status, speed or destination changes).": "Brak zarejestrowanej aktywności — zdarzenia pojawiają się przy aktualizacjach (zmiany statusu, prędkości lub celu).",
+    "Nav status:": "Status nawigacji:", "Speed:": "Prędkość:", "Destination:": "Przeznaczenie:",
+    "Added to fleet": "Dodano do floty",
+    "Discover famous superyachts": "Odkryj słynne superjachty", "Tracking ✓": "Śledzona ✓", "Track": "Śledź",
+    "No photo available": "Brak zdjęcia",
+    "Weather unavailable ({msg})": "Pogoda niedostępna ({msg})", "No position data": "Brak danych o pozycji",
+    "Enter a valid 7-digit IMO number": "Podaj poprawny 7-cyfrowy numer IMO",
+    "Could not add vessel: {msg}": "Nie można dodać jednostki: {msg}",
+    "No vessel selected": "Nie wybrano jednostki",
+    "Live AIS map of {name}": "Mapa AIS na żywo: {name}",
+    "Projected position in 24 h": "Przewidywana pozycja za 24 h", "Show live track": "Pokaż trasę na żywo",
+    "Updated {t}": "Zaktualizowano {t}",
+    "in {x}": "za {x}", "Now (arrived / overdue)": "Teraz (przybył / po terminie)",
+    "nVesselsOne": "1 jednostka",
+    "Tracking {name} ({imo})": "Śledzenie: {name} ({imo})",
+    "closeApproach": "{a} i {b} są oddalone o {d} nm (próg {th} nm)",
+    "just now": "teraz", "min ago": "min temu", "h ago": "godz. temu", "d ago": "dni temu",
+    "181 m · 2013 · World's longest motor yacht": "181 m · 2013 · Najdłuższy jacht motorowy świata",
+    "The longest private motor yacht ever built (180.6 m), launched for a member of the Abu Dhabi royal family.": "Najdłuższy prywatny jacht motorowy świata (180,6 m), zwodowany dla członka rodziny królewskiej Abu Zabi.",
+    "162.5 m · 2010": "162,5 m · 2010",
+    "One of the largest yachts ever built — famed for missile-detection systems and an on-board submarine.": "Jeden z największych jachtów świata — słynny z systemów wykrywania rakiet i pokładowego okrętu podwodnego.",
+    "156 m · 2016 · Largest by volume": "156 m · 2016 · Największy objętościowo",
+    "The world's largest yacht by internal volume (15,917 GT); its swimming pool set a Guinness World Record.": "Największy jacht świata pod względem pojemności (15 917 GT); jego basen ustanowił rekord Guinnessa.",
+    "The yacht that started this tracker — a 107 m German-built superyacht.": "Jacht, od którego zaczął się ten tracker — 107-metrowy superjacht zbudowany w Niemczech.",
+    "Iconic DynaRig sailing yacht with self-standing carbon masts and about 2,800 m² of sail.": "Kultowy żaglowiec DynaRig z samonośnymi masztami z włókna węglowego i ok. 2800 m² żagli.",
+  },
+  it: {
+    "Map": "Mappa", "Fleet": "Flotta", "Activity": "Attività", "Discover": "Scopri",
+    "🌙 Midnight": "🌙 Mezzanotte", "☀️ Daylight": "☀️ Giorno", "🌿 Emerald": "🌿 Smeraldo", "🌇 Sunset": "🌇 Tramonto",
+    "Add vessel by IMO… e.g. 9692545": "Aggiungi nave per IMO… es. 9692545",
+    "+ Track": "+ Traccia",
+    "No vessels tracked yet — add one by IMO number above.": "Nessuna nave tracciata — aggiungine una tramite il numero IMO qui sopra.",
+    "Tracked": "Tracciate", "Under way": "In navigazione", "At anchor": "All'ancora", "Avg SOG": "Vel. media",
+    "🔕 Alerts off": "🔕 Avvisi off", "🔔 Alerts on": "🔔 Avvisi on", "within": "entro",
+    "Length": "Lunghezza", "Beam": "Larghezza", "Gross Tons": "Stazza GT", "Built": "Anno",
+    "Navigation status": "Stato di navigazione", "Region": "Regione",
+    "Speed / Course": "Velocità / Rotta", "Destination": "Destinazione",
+    "Live track": "Traccia live", "Fleet view": "Vista flotta",
+    "👻 Ghost track": "👻 Traccia fantasma",
+    "Position & Tracking": "Posizione e tracciamento",
+    "Live AIS position and 24 h track of the selected vessel via VesselFinder · Map data © OpenStreetMap contributors": "Posizione AIS live e rotta 24 h della nave selezionata (VesselFinder) · Dati mappa © OpenStreetMap",
+    "Fleet overview — boat markers are rotated to heading and colour-coded by status; circles show the ~1° position uncertainty of the free AIS feed. Use Live track for the precise track of a selected vessel.": "Panoramica flotta — i markeri seguono la rotta e il colore lo stato; i cerchi mostrano l'incertezza (~1°) del feed AIS gratuito. Usa „Traccia live” per la rotta precisa.",
+    "Select or add a vessel to see its live position and track.": "Seleziona o aggiungi una nave per vedere posizione e rotta.",
+    "Could not load the fleet map (Leaflet CDN unreachable).": "Impossibile caricare la mappa della flotta (CDN Leaflet non raggiungibile).",
+    "Voyage Intelligence": "Intelligenza di viaggio", "ETA": "ETA", "Arrives in": "Arrivo tra",
+    "On course": "In rotta", "Off course": "Fuori rotta", "Anchored / not moving": "All'ancora / ferma",
+    "To destination": "Alla destinazione", "Speed over ground": "Velocità sul fondo",
+    "Course over ground": "Rotta sul fondo", "Current draught": "Pescaggio attuale",
+    "Position received": "Posizione ricevuta", "Last port": "Ultimo porto", "ATD": "ATD", "ETA_": "ETA",
+    "On course: heading vs the bearing to destination (geocoded via OpenStreetMap).": "\"In rotta\" confronta la rotta della nave con la direzione verso la destinazione (geocodificata via OpenStreetMap).",
+    "Identification": "Identificazione", "Vessel name": "Nome nave", "IMO number": "Numero IMO",
+    "MMSI": "MMSI", "Callsign": "Nominativo", "Ship type": "Tipo di nave",
+    "Flag state": "Bandiera", "Approx. position": "Posizione approssimativa", "Data source": "Fonte dati",
+    "Vessel Particulars": "Particolari della nave", "Dimensions": "Dimensioni", "Tonnage": "Stazza", "General": "Generali",
+    "Length overall": "Lunghezza fuori tutto", "Draught": "Pescaggio", "Draft from voyage": "Pescaggio (viaggio)",
+    "Gross tonnage": "Stazza lorda", "Net tonnage": "Stazza netta", "Deadweight": "Portata",
+    "Year of build": "Anno di costruzione",
+    "Particulars from public AIS registries (VesselFinder). Some fields may be blank for vessels with limited registry data.": "Particolari da registri AIS pubblici (VesselFinder). Alcuni campi possono essere vuoti.",
+    "Behavioral Insights": "Analisi comportamentale", "just started watching": "monitoraggio appena iniziato",
+    "Insights build up as this app watches the vessel (status & speed sampled every ~5 min). Check back after a while.": "L'analisi cresce mentre l'app osserva la nave (stato e velocità campionati ogni ~5 min). Riprova più tardi.",
+    "tracked for": "tracciata da", "Distance covered": "Distanza percorsa",
+    "Avg speed": "Vel. media", "Top speed": "Vel. massima", "Longest anchor": "Ancora più lunga",
+    "Arrivals": "Arrivi", "Departures": "Partenze",
+    "Aboard": "A bordo", "Local date": "Data locale", "Sunrise": "Alba",
+    "Sunset": "Tramonto", "Daylight": "Ore di luce",
+    "Sunrise in": "Alba tra", "Sunset in": "Tramonto tra", "Sunrise in (tomorrow)": "Alba tra (domani)",
+    "Polar day/night — no sunrise or sunset": "Giorno/notte polare — nessuna alba né tramonto",
+    "Weather at Position": "Meteo in posizione", "Air temp": "Temperatura", "Wind speed": "Vento",
+    "Wind dir": "Direzione vento", "Wind gusts": "Raffiche",
+    "Weather from Open-Meteo for the vessel's reported area. Updates periodically.": "Meteo da Open-Meteo per l'area della nave. Aggiornamenti periodici.",
+    "Vessel": "Nave", "Type": "Tipo", "Status": "Stato", "Last update": "Ultimo aggiornamento",
+    "Click a row to focus the vessel · Click column headers to sort.": "Clicca una riga per selezionare la nave · Clicca le intestazioni per ordinare.",
+    "Fleet Board": "Tabella flotta", "Fleet Activity": "Attività flotta", "Clear": "Pulisci",
+    "Events are recorded as this app observes each vessel during refreshes (status, speed and destination changes).": "Gli eventi sono registrati durante gli aggiornamenti (variazioni di stato, velocità o destinazione).",
+    "No activity recorded yet — events appear as vessels update (status, speed or destination changes).": "Nessuna attività registrata — gli eventi compaiono con gli aggiornamenti (variazioni di stato, velocità o destinazione).",
+    "Nav status:": "Stato di navigazione:", "Speed:": "Velocità:", "Destination:": "Destinazione:",
+    "Added to fleet": "Aggiunta alla flotta",
+    "Discover famous superyachts": "Scopri famosi superyacht", "Tracking ✓": "Tracciata ✓", "Track": "Traccia",
+    "No photo available": "Nessuna foto",
+    "Weather unavailable ({msg})": "Meteo non disponibile ({msg})", "No position data": "Nessun dato di posizione",
+    "Enter a valid 7-digit IMO number": "Inserisci un numero IMO valido a 7 cifre",
+    "Could not add vessel: {msg}": "Impossibile aggiungere la nave: {msg}",
+    "No vessel selected": "Nessuna nave selezionata",
+    "Live AIS map of {name}": "Mappa AIS live di {name}",
+    "Projected position in 24 h": "Posizione prevista tra 24 h", "Show live track": "Mostra traccia live",
+    "Updated {t}": "Aggiornato {t}",
+    "in {x}": "tra {x}", "Now (arrived / overdue)": "Ora (arrivato / in ritardo)",
+    "nVesselsOne": "1 nave",
+    "Tracking {name} ({imo})": "Tracciamento: {name} ({imo})",
+    "closeApproach": "{a} e {b} distano {d} nm (soglia {th} nm)",
+    "just now": "proprio ora", "min ago": "min fa", "h ago": "ore fa", "d ago": "giorni fa",
+    "181 m · 2013 · World's longest motor yacht": "181 m · 2013 · Lo yacht a motore più lungo del mondo",
+    "The longest private motor yacht ever built (180.6 m), launched for a member of the Abu Dhabi royal family.": "Il più lungo yacht a motore privato mai costruito (180,6 m), varato per un membro della famiglia reale di Abu Dhabi.",
+    "162.5 m · 2010": "162,5 m · 2010",
+    "One of the largest yachts ever built — famed for missile-detection systems and an on-board submarine.": "Uno dei più grandi yacht mai costruiti — famoso per i sistemi di rilevamento missili e un sottomarino a bordo.",
+    "156 m · 2016 · Largest by volume": "156 m · 2016 · Il più grande per volume",
+    "The world's largest yacht by internal volume (15,917 GT); its swimming pool set a Guinness World Record.": "Il più grande yacht al mondo per volume interno (15.917 GT); la sua piscina ha stabilito un Guinness World Record.",
+    "The yacht that started this tracker — a 107 m German-built superyacht.": "Lo yacht da cui è nato questo tracker — un superyacht tedesco di 107 m.",
+    "Iconic DynaRig sailing yacht with self-standing carbon masts and about 2,800 m² of sail.": "Iconico yacht a vela DynaRig con alberi in carbonio autoportanti e circa 2.800 m² di vela.",
+  },
+};
+
+const NAV_STATUS_PL = {
+  "At anchor": "Na kotwicy",
+  "Under way using engine": "W drodze (napęd mechaniczny)",
+  "Under way": "W drodze",
+  "Moored": "Zacumowany",
+  "Alongside": "Przy nabrzeżu",
+  "Berthed": "Przy kei",
+  "Sailing": "Pod żaglami",
+  "Not under command": "Nie sterowany",
+  "Restricted maneuverability": "Ograniczona manewrowość",
+  "Constrained by her draught": "Ograniczony zanurzeniem",
+  "Engaged in fishing": "Prowadzi połowy",
+};
+const NAV_STATUS_IT = {
+  "At anchor": "All'ancora",
+  "Under way using engine": "In navigazione (motore)",
+  "Under way": "In navigazione",
+  "Moored": "Ormeggiato",
+  "Alongside": "Accosto",
+  "Berthed": "In banchina",
+  "Sailing": "A vela",
+  "Not under command": "Non governabile",
+  "Restricted maneuverability": "Manovrabilità limitata",
+  "Constrained by her draught": "Limitato dal pescaggio",
+  "Engaged in fishing": "Attività di pesca",
+};
+
+function t(key) {
+  const dict = I18N[LANG];
+  return (dict && dict[key]) || key;
+}
+function tF(key, params) {
+  let s = t(key);
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      s = s.split("{" + k + "}").join(v);
+    }
+  }
+  return s;
+}
+function trStatus(status) {
+  if (LANG === "en" || !status) return status || "—";
+  const map = LANG === "pl" ? NAV_STATUS_PL : NAV_STATUS_IT;
+  return map[status] || status;
+}
+function nVessels(n) {
+  if (n === 1) return LANG === "en" ? "1 vessel" : t("nVesselsOne");
+  const base = t("Vessel");
+  if (LANG === "pl") return n + " " + (n < 5 ? "jednostki" : "jednostek");
+  return n + " " + (LANG === "it" ? "navi" : "vessels");
+}
+function photoFallback() {
+  return (
+    "data:image/svg+xml;utf8," +
+    encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="520">' +
+        '<rect width="100%" height="100%" fill="#131e31"/>' +
+        '<text x="50%" y="50%" font-size="130" text-anchor="middle" dominant-baseline="middle">⚓</text>' +
+        '<text x="50%" y="62%" font-size="26" fill="#8fa2bd" text-anchor="middle">' + t("No photo available") + "</text>" +
+        "</svg>"
+    )
+  );
+}
+
+function setLang(l) {
+  LANG = l === "pl" || l === "it" ? l : "en";
+  localStorage.setItem(LANG_KEY, LANG);
+  document.documentElement.lang = LANG;
+  const sel = $("lang-select");
+  if (sel) sel.value = LANG;
+  applyLang();
+}
+
+function applyLang() {
+  document.documentElement.lang = LANG;
+  document.querySelectorAll("[data-i18n]").forEach((el) => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
+    el.placeholder = t(el.dataset.i18nPlaceholder);
+  });
+  document.querySelectorAll("[data-i18n-title]").forEach((el) => {
+    el.title = t(el.dataset.i18nTitle);
+  });
+  const v = selected();
+  renderFleetStrip();
+  renderBoard();
+  renderStats();
+  renderTimeline();
+  renderDiscover();
+  renderAlertsUI();
+  renderSelected();
+}
+
+/* ---------------- language switcher ---------------- */
+{
+  const sel = $("lang-select");
+  if (sel) {
+    sel.value = LANG;
+    sel.addEventListener("change", (e) => setLang(e.target.value));
+  }
+  applyLang();
 }
 
 /* ---------------- fetching ---------------- */
@@ -843,7 +1096,7 @@ async function refreshAll() {
 async function addVessel(imo) {
   imo = String(imo || "").replace(/\D/g, "");
   if (!/^\d{7}$/.test(imo)) {
-    flash("Enter a valid 7-digit IMO number");
+    flash(t("Enter a valid 7-digit IMO number"));
     return;
   }
   if (state.vessels.some((v) => v.imo === imo)) {
@@ -858,16 +1111,16 @@ async function addVessel(imo) {
     state.vessels.push(v);
     saveData(v);
     saveIMOs();
-    logEvent(v.imo, v.name, "Added to fleet");
+    logEvent(v.imo, v.name, t("Added to fleet"));
     renderFleetStrip();
     renderBoard();
     renderStats();
     renderDiscover();
     checkProximity();
     selectVessel(imo);
-    flash("Tracking " + v.name + " (" + imo + ")");
+    flash(tF("Tracking {name} ({imo})", { name: v.name, imo }));
   } catch (err) {
-    flash("Could not add vessel: " + err.message);
+    flash(tF("Could not add vessel: {msg}", { msg: err.message }));
   } finally {
     btn.disabled = false;
     btn.textContent = "+ Track";
@@ -921,11 +1174,11 @@ function renderFleetStrip() {
       const pos = fmtLatLon(v);
       return (
         '<button class="fleet-card' + active + '" data-imo="' + v.imo + '">' +
-        '<img src="' + (v.photo || PHOTO_FALLBACK) + '" alt="">' +
+        '<img src="' + (v.photo || photoFallback()) + '" alt="">' +
         '<span class="fc-info">' +
         '<span class="fc-name">' + escapeHtml(v.name) + "</span>" +
-        '<span class="fc-meta">' + escapeHtml(v.type || "Vessel") + " · IMO " + v.imo + "</span>" +
-        '<span class="fc-status">' + escapeHtml(v.navStatus || "—") + " · " + pos + "</span>" +
+        '<span class="fc-meta">' + escapeHtml(v.type || t("Vessel")) + " · IMO " + v.imo + "</span>" +
+        '<span class="fc-status">' + escapeHtml(trStatus(v.navStatus)) + " · " + pos + "</span>" +
         "</span>" +
         '<span class="fc-remove" data-remove="' + v.imo + '" title="Remove">&times;</span>' +
         "</button>"
@@ -958,7 +1211,7 @@ function setStatusPill(status) {
   const s = String(status || "").toLowerCase();
   const underway = /under way|sailing|navigat|making way|engine/.test(s);
   const anchored = /anchor|moored|alongside|berthed/.test(s);
-  pill.textContent = status || "—";
+  pill.textContent = trStatus(status);
   pill.classList.toggle("warn", underway);
   pill.classList.toggle("warn", !anchored && !underway && !!status);
 }
@@ -967,12 +1220,17 @@ function renderSelected() {
   const v = selected();
   document.title = v ? v.name + " — Superyacht Tracker" : "Superyacht Tracker";
 
-  fillText("vessel-name", v ? v.name : "No vessel selected");
-  fillText("vessel-type", v ? (v.type || "Vessel") : "—");
-  fillText("vessel-sub", v ? "IMO " + v.imo + " · MMSI " + (v.mmsi || "—") + " · Callsign " + (v.callsign || "—") : "—");
+  fillText("vessel-name", v ? v.name : t("No vessel selected"));
+  fillText("vessel-type", v ? (v.type || t("Vessel")) : "—");
+  fillText(
+    "vessel-sub",
+    v
+      ? "IMO " + v.imo + " · MMSI " + (v.mmsi || "—") + " · " + t("Callsign") + " " + (v.callsign || "—")
+      : "—"
+  );
   fillText("flag-badge", v ? flagEmoji(v.flagCode) : "🏴");
 
-  $("vessel-photo").src = v && v.photo ? v.photo : PHOTO_FALLBACK;
+  $("vessel-photo").src = v && v.photo ? v.photo : photoFallback();
   setStatusPill(v ? v.navStatus : null);
 
   fillHtml("stat-loa", v ? (spec(v, "Length Overall") || "—") + "<em> m</em>" : "—");
@@ -980,7 +1238,7 @@ function renderSelected() {
   fillText("stat-gt", v ? fmtNum(spec(v, "Gross Tonnage") || "—") : "—");
   fillText("stat-built", v ? (spec(v, "Year of Build") || "—") : "—");
 
-  fillText("nav-status", v ? (v.navStatus || "—") : "—");
+  fillText("nav-status", v ? trStatus(v.navStatus) : "—");
   fillText("region", v ? (v.region || "—") : "—");
   const sog = v && v.position && v.position.sog != null ? v.position.sog.toFixed(1) : "—";
   const cog = v && v.position && v.position.cog != null ? v.position.cog : "—";
@@ -991,14 +1249,14 @@ function renderSelected() {
   /* Voyage */
   fillText("v-dest", v ? (v.destination || "—") : "—");
   fillText("v-eta", v ? (v.eta || "—") : "—");
-  fillText("v-status", v ? (v.navStatus || "—") : "—");
+  fillText("v-status", v ? trStatus(v.navStatus) : "—");
   fillText("v-sog", sog);
   fillText("v-cog", cog);
   fillText("v-draught", v ? (v.draught || "—") : "—");
   fillText("v-lastrep", relativeTime(lastSeenDate(v)));
   fillText(
     "v-lastport",
-    v ? (v.lastPort || "—") + (v.lastPortAtd ? ' <span class="dim">(ATD ' + v.lastPortAtd + ")</span>" : "") : "—"
+    v ? (v.lastPort || "—") + (v.lastPortAtd ? ' <span class="dim">(' + t("ATD") + " " + v.lastPortAtd + ")</span>" : "") : "—"
   );
 
   /* Identification */
@@ -1042,8 +1300,7 @@ function renderLiveMap() {
   const v = selected();
   const holder = $("vfmap");
   if (!v) {
-    holder.innerHTML =
-      '<div class="map-fallback">Select or add a vessel to see its live position and track.</div>';
+    holder.innerHTML = '<div class="map-fallback">' + t("Select or add a vessel to see its live position and track.") + "</div>";
     return;
   }
   const p = v.position || {};
@@ -1056,8 +1313,8 @@ function renderLiveMap() {
     "&ra=" + encodeURIComponent(location.origin);
   holder.innerHTML =
     '<iframe src="' + url +
-    '" frameborder="0" width="100%" height="520" allowfullscreen title="Live AIS map of ' +
-    escapeHtml(v.name) + '"></iframe>';
+    '" frameborder="0" width="100%" height="520" allowfullscreen title="' +
+    tF("Live AIS map of {name}", { name: v.name }) + '"></iframe>';
 }
 
 function ensureLeaflet(cb) {
@@ -1081,7 +1338,7 @@ function ensureLeaflet(cb) {
   script.onload = cb;
   script.onerror = () => {
     $("fleetmap").innerHTML =
-      '<div class="map-fallback">Could not load the fleet map (Leaflet CDN unreachable).</div>';
+      '<div class="map-fallback">' + t("Could not load the fleet map (Leaflet CDN unreachable).") + "</div>";
   };
   document.head.appendChild(script);
 }
@@ -1159,12 +1416,12 @@ function renderFleetMap() {
             }),
           }).bindPopup(
             "<strong>" + escapeHtml(v.name) + "</strong><br>" +
-              (v.navStatus ? escapeHtml(v.navStatus) + "<br>" : "") +
+              (v.navStatus ? escapeHtml(trStatus(v.navStatus)) + "<br>" : "") +
               (p.sog != null ? p.sog.toFixed(1) + " kn · " : "") +
               (p.cog != null ? Math.round(p.cog) + "°<br>" : "") +
               "≈ " + fmtLatLon(v) +
               (v.destination ? "<br>→ " + escapeHtml(v.destination) : "") +
-              '<br><button class="leaflet-select" data-imo="' + v.imo + '">Show live track</button>'
+              '<br><button class="leaflet-select" data-imo="' + v.imo + '">' + t("Show live track") + "</button>"
           )
         );
         bounds.push([p.lat, p.lon]);
@@ -1192,7 +1449,8 @@ function renderFleetMap() {
                 html: '<div class="ghost-end"></div>',
               }),
             }).bindPopup(
-              "<strong>" + escapeHtml(v.name) + "</strong><br>Projected position in 24 h<br>≈ " +
+              "<strong>" + escapeHtml(v.name) + "</strong><br>" +
+                t("Projected position in 24 h") + "<br>≈ " +
                 fmtLatLonPair(end[0], end[1])
             )
           );
@@ -1238,7 +1496,7 @@ async function loadWeather(v) {
     fillHtml("w-wind", "—");
     fillHtml("w-wdir", "—");
     fillHtml("w-gust", "—");
-    fillText("weather-updated", v ? "No position data" : "");
+    fillText("weather-updated", v ? t("No position data") : "");
   };
   if (p.lat == null || p.lon == null) return reset();
   const grid = $("weather-grid");
@@ -1256,12 +1514,13 @@ async function loadWeather(v) {
     fillHtml("w-wind", Math.round(c.wind_speed_10m) + "<small> kn</small>");
     fillHtml("w-wdir", c.wind_direction_10m + "° <small>" + compass(c.wind_direction_10m) + "</small>");
     fillHtml("w-gust", Math.round(c.wind_gusts_10m) + "<small> kn</small>");
-    fillText("weather-updated", "Updated " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+    fillText("weather-updated", tF("Updated {t}", { t: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }));
   } catch (err) {
     if (token !== state.weatherToken) return;
     $("weather-grid").insertAdjacentHTML(
       "beforeend",
-      '<p class="w-error" style="grid-column:1/-1;color:#8fa2bd;font-size:13px">Weather unavailable (' + err.message + ").</p>"
+      '<p class="w-error" style="grid-column:1/-1;color:#8fa2bd;font-size:13px">' +
+        tF("Weather unavailable ({msg})", { msg: err.message }) + ".</p>"
     );
   }
 }

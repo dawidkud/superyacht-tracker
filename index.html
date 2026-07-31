@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Superyacht Tracker — ANDROMEDA &amp; fleet</title>
+  <title id="page-title">Superyacht Tracker</title>
   <meta name="description" content="Track superyachts and vessels by IMO number with live AIS position, details and weather.">
   <link rel="stylesheet" href="style.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚓</text></svg>">
@@ -17,32 +17,38 @@
         <span class="brand-name">Superyacht <strong>Tracker</strong></span>
       </div>
       <nav class="topnav">
-        <a href="#map">Map</a>
-        <a href="#board">Fleet</a>
-        <a href="#timeline">Activity</a>
-        <a href="#discover">Discover</a>
+        <a href="#map" data-i18n="Map">Map</a>
+        <a href="#board" data-i18n="Fleet">Fleet</a>
+        <a href="#timeline" data-i18n="Activity">Activity</a>
+        <a href="#discover" data-i18n="Discover">Discover</a>
       </nav>
       <select class="theme-select" id="theme-select" aria-label="Colour theme" title="Colour theme">
-        <option value="midnight">🌙 Midnight</option>
-        <option value="daylight">☀️ Daylight</option>
-        <option value="emerald">🌿 Emerald</option>
-        <option value="sunset">🌇 Sunset</option>
+        <option value="midnight" data-i18n="🌙 Midnight">🌙 Midnight</option>
+        <option value="daylight" data-i18n="☀️ Daylight">☀️ Daylight</option>
+        <option value="emerald" data-i18n="🌿 Emerald">🌿 Emerald</option>
+        <option value="sunset" data-i18n="🌇 Sunset">🌇 Sunset</option>
+      </select>
+      <select class="lang-select" id="lang-select" aria-label="Language" title="Language">
+        <option value="en">EN · English</option>
+        <option value="pl">PL · Polski</option>
+        <option value="it">IT · Italiano</option>
       </select>
       <form class="add-bar" id="add-form">
         <input id="imo-input" inputmode="numeric" pattern="[0-9]{7}" maxlength="7"
+               data-i18n-placeholder="Add vessel by IMO… e.g. 9692545"
                placeholder="Add vessel by IMO… e.g. 9692545" autocomplete="off">
-        <button type="submit" id="add-btn">+ Track</button>
+        <button type="submit" id="add-btn" data-i18n="+ Track">+ Track</button>
       </form>
     </div>
   </header>
 
   <section class="fleet-strip" id="fleet-strip" aria-label="Tracked vessels">
     <div class="fleet-scroll" id="fleet-scroll"></div>
-    <p class="fleet-hint" id="fleet-hint">No vessels tracked yet — add one by IMO number above.</p>
+    <p class="fleet-hint" id="fleet-hint" data-i18n="No vessels tracked yet — add one by IMO number above.">No vessels tracked yet — add one by IMO number above.</p>
     <div class="stats-bar" id="stats-bar"></div>
     <div class="alerts-row">
       <button class="mini-btn" id="notif-toggle">🔕 Alerts off</button>
-      <label class="dim">within
+      <label class="dim"><span data-i18n="within">within</span>
         <select id="prox-threshold">
           <option value="5">5 nm</option>
           <option value="10" selected>10 nm</option>
@@ -72,37 +78,37 @@
           <div class="hero-stats">
             <div class="stat">
               <span class="stat-value" id="stat-loa">—</span>
-              <span class="stat-label">Length</span>
+              <span class="stat-label" data-i18n="Length">Length</span>
             </div>
             <div class="stat">
               <span class="stat-value" id="stat-beam">—</span>
-              <span class="stat-label">Beam</span>
+              <span class="stat-label" data-i18n="Beam">Beam</span>
             </div>
             <div class="stat">
               <span class="stat-value" id="stat-gt">—</span>
-              <span class="stat-label">Gross Tons</span>
+              <span class="stat-label" data-i18n="Gross Tons">Gross Tons</span>
             </div>
             <div class="stat">
               <span class="stat-value" id="stat-built">—</span>
-              <span class="stat-label">Built</span>
+              <span class="stat-label" data-i18n="Built">Built</span>
             </div>
           </div>
 
           <dl class="hero-facts">
             <div class="fact">
-              <dt>Navigation status</dt>
+              <dt data-i18n="Navigation status">Navigation status</dt>
               <dd id="nav-status">—</dd>
             </div>
             <div class="fact">
-              <dt>Region</dt>
+              <dt data-i18n="Region">Region</dt>
               <dd id="region">—</dd>
             </div>
             <div class="fact">
-              <dt>Speed / Course</dt>
+              <dt data-i18n="Speed / Course">Speed / Course</dt>
               <dd><span id="sog">—</span> kn / <span id="cog">—</span>°</dd>
             </div>
             <div class="fact">
-              <dt>Destination</dt>
+              <dt data-i18n="Destination">Destination</dt>
               <dd id="destination">—</dd>
             </div>
           </dl>
@@ -115,159 +121,159 @@
 
     <section id="map" class="card map-card">
       <div class="card-head">
-        <h2>Position &amp; Tracking</h2>
+        <h2 data-i18n="Position & Tracking">Position &amp; Tracking</h2>
         <div class="head-right">
           <div class="tabs">
-            <button class="tab active" id="tab-live">Live track</button>
-            <button class="tab" id="tab-fleet">Fleet view</button>
+            <button class="tab active" id="tab-live" data-i18n="Live track">Live track</button>
+            <button class="tab" id="tab-fleet" data-i18n="Fleet view">Fleet view</button>
           </div>
-          <label class="ghost-toggle" title="Project each vessel's future position from heading & speed">
+          <label class="ghost-toggle" data-i18n-title="Project each vessel's future position from heading & speed" title="Project each vessel's future position from heading & speed">
             <input type="checkbox" id="ghost-toggle">
-            <span class="ghost-label">👻 Ghost track</span>
+            <span class="ghost-label" data-i18n="👻 Ghost track">👻 Ghost track</span>
           </label>
         </div>
       </div>
       <div id="map-live" class="map-wrap">
         <div id="vfmap"></div>
-        <p class="map-note">Live AIS position and 24&nbsp;h track of the selected vessel via VesselFinder · Map data © OpenStreetMap contributors</p>
+        <p class="map-note" data-i18n="Live AIS position and 24 h track of the selected vessel via VesselFinder · Map data © OpenStreetMap contributors">Live AIS position and 24&nbsp;h track of the selected vessel via VesselFinder · Map data © OpenStreetMap contributors</p>
       </div>
       <div id="map-fleet" class="map-wrap hidden">
         <div id="fleetmap"></div>
-        <p class="map-note">Fleet overview — boat markers are rotated to heading and colour-coded by status; circles show the ~1° position uncertainty of the free AIS feed. Use <em>Live track</em> for the precise track of a selected vessel.</p>
+        <p class="map-note" data-i18n="Fleet overview — boat markers are rotated to heading and colour-coded by status; circles show the ~1° position uncertainty of the free AIS feed. Use Live track for the precise track of a selected vessel.">Fleet overview — boat markers are rotated to heading and colour-coded by status; circles show the ~1° position uncertainty of the free AIS feed. Use <em>Live track</em> for the precise track of a selected vessel.</p>
       </div>
     </section>
 
     <section id="board" class="card">
       <div class="card-head">
-        <h2>Fleet Board</h2>
+        <h2 data-i18n="Fleet Board">Fleet Board</h2>
         <span class="dim" id="board-count"></span>
       </div>
       <div class="table-wrap">
         <table class="board">
           <thead>
             <tr>
-              <th data-sort="name">Vessel</th>
-              <th data-sort="type">Type</th>
-              <th data-sort="status">Status</th>
+              <th data-sort="name" data-i18n="Vessel">Vessel</th>
+              <th data-sort="type" data-i18n="Type">Type</th>
+              <th data-sort="status" data-i18n="Status">Status</th>
               <th data-sort="sog">SOG</th>
               <th data-sort="cog">COG</th>
-              <th data-sort="destination">Destination</th>
+              <th data-sort="destination" data-i18n="Destination">Destination</th>
               <th data-sort="eta">ETA</th>
-              <th data-sort="lastSeen">Last update</th>
+              <th data-sort="lastSeen" data-i18n="Last update">Last update</th>
             </tr>
           </thead>
           <tbody id="board-body"></tbody>
         </table>
       </div>
-      <p class="card-note">Click a row to focus the vessel · Click column headers to sort.</p>
+      <p class="card-note" data-i18n="Click a row to focus the vessel · Click column headers to sort.">Click a row to focus the vessel · Click column headers to sort.</p>
     </section>
 
     <section id="timeline" class="card">
       <div class="card-head">
-        <h2>Fleet Activity</h2>
-        <button class="mini-btn" id="timeline-clear">Clear</button>
+        <h2 data-i18n="Fleet Activity">Fleet Activity</h2>
+        <button class="mini-btn" id="timeline-clear" data-i18n="Clear">Clear</button>
       </div>
       <div class="timeline" id="timeline"></div>
-      <p class="card-note">Events are recorded as this app observes each vessel during refreshes (status, speed and destination changes).</p>
+      <p class="card-note" data-i18n="Events are recorded as this app observes each vessel during refreshes (status, speed and destination changes).">Events are recorded as this app observes each vessel during refreshes (status, speed and destination changes).</p>
     </section>
 
     <section class="grid-2">
       <div class="card">
-        <div class="card-head"><h2>Voyage Intelligence</h2></div>
+        <div class="card-head"><h2 data-i18n="Voyage Intelligence">Voyage Intelligence</h2></div>
         <table class="kv">
           <tbody>
-            <tr><td>Destination</td><td id="v-dest">—</td></tr>
-            <tr><td>ETA</td><td id="v-eta">—</td></tr>
-            <tr><td>Arrives in</td><td id="v-eta-count">—</td></tr>
-            <tr><td>On course</td><td id="v-oncourse">—</td></tr>
-            <tr><td>To destination</td><td id="v-dist">—</td></tr>
-            <tr><td>Navigation status</td><td id="v-status">—</td></tr>
-            <tr><td>Speed over ground</td><td><span id="v-sog">—</span> kn</td></tr>
-            <tr><td>Course over ground</td><td><span id="v-cog">—</span>°</td></tr>
-            <tr><td>Current draught</td><td id="v-draught">—</td></tr>
-            <tr><td>Position received</td><td id="v-lastrep">—</td></tr>
-            <tr><td>Last port</td><td id="v-lastport">—</td></tr>
+            <tr><td data-i18n="Destination">Destination</td><td id="v-dest">—</td></tr>
+            <tr><td data-i18n="ETA">ETA</td><td id="v-eta">—</td></tr>
+            <tr><td data-i18n="Arrives in">Arrives in</td><td id="v-eta-count">—</td></tr>
+            <tr><td data-i18n="On course">On course</td><td id="v-oncourse">—</td></tr>
+            <tr><td data-i18n="To destination">To destination</td><td id="v-dist">—</td></tr>
+            <tr><td data-i18n="Navigation status">Navigation status</td><td id="v-status">—</td></tr>
+            <tr><td data-i18n="Speed over ground">Speed over ground</td><td><span id="v-sog">—</span> kn</td></tr>
+            <tr><td data-i18n="Course over ground">Course over ground</td><td><span id="v-cog">—</span>°</td></tr>
+            <tr><td data-i18n="Current draught">Current draught</td><td id="v-draught">—</td></tr>
+            <tr><td data-i18n="Position received">Position received</td><td id="v-lastrep">—</td></tr>
+            <tr><td data-i18n="Last port">Last port</td><td id="v-lastport">—</td></tr>
           </tbody>
         </table>
         <div class="voyage-progress" id="voyage-progress">
           <div class="vp-track"><div class="vp-fill" id="vp-fill"></div><span class="vp-now" id="vp-now"></span></div>
           <div class="vp-labels"><span id="vp-atd">—</span><span id="vp-eta">—</span></div>
         </div>
-        <p class="card-note">"On course" compares the vessel's heading with the bearing to its destination (geocoded via OpenStreetMap).</p>
+        <p class="card-note" data-i18n="On course: heading vs the bearing to destination (geocoded via OpenStreetMap).">"On course" compares the vessel's heading with the bearing to its destination (geocoded via OpenStreetMap).</p>
       </div>
 
       <div class="card">
-        <div class="card-head"><h2>Identification</h2></div>
+        <div class="card-head"><h2 data-i18n="Identification">Identification</h2></div>
         <table class="kv">
           <tbody>
-            <tr><td>Vessel name</td><td id="i-name">—</td></tr>
-            <tr><td>IMO number</td><td id="i-imo">—</td></tr>
-            <tr><td>MMSI</td><td id="i-mmsi">—</td></tr>
-            <tr><td>Callsign</td><td id="i-callsign">—</td></tr>
-            <tr><td>Ship type</td><td id="i-type">—</td></tr>
-            <tr><td>Flag state</td><td id="i-flag">—</td></tr>
-            <tr><td>Approx. position</td><td id="i-pos">—</td></tr>
-            <tr><td>Data source</td><td id="i-source">—</td></tr>
+            <tr><td data-i18n="Vessel name">Vessel name</td><td id="i-name">—</td></tr>
+            <tr><td data-i18n="IMO number">IMO number</td><td id="i-imo">—</td></tr>
+            <tr><td data-i18n="MMSI">MMSI</td><td id="i-mmsi">—</td></tr>
+            <tr><td data-i18n="Callsign">Callsign</td><td id="i-callsign">—</td></tr>
+            <tr><td data-i18n="Ship type">Ship type</td><td id="i-type">—</td></tr>
+            <tr><td data-i18n="Flag state">Flag state</td><td id="i-flag">—</td></tr>
+            <tr><td data-i18n="Approx. position">Approx. position</td><td id="i-pos">—</td></tr>
+            <tr><td data-i18n="Data source">Data source</td><td id="i-source">—</td></tr>
           </tbody>
         </table>
       </div>
     </section>
 
     <section id="specs" class="card">
-      <div class="card-head"><h2>Vessel Particulars</h2></div>
+      <div class="card-head"><h2 data-i18n="Vessel Particulars">Vessel Particulars</h2></div>
       <div class="spec-grid">
         <div>
-          <h3>Dimensions</h3>
+          <h3 data-i18n="Dimensions">Dimensions</h3>
           <table class="kv">
             <tbody>
-              <tr><td>Length overall</td><td id="s-loa">—</td></tr>
-              <tr><td>Beam</td><td id="s-beam">—</td></tr>
-              <tr><td>Draught</td><td id="s-draught">—</td></tr>
-              <tr><td>Draft from voyage</td><td id="s-draught-cur">—</td></tr>
+              <tr><td data-i18n="Length overall">Length overall</td><td id="s-loa">—</td></tr>
+              <tr><td data-i18n="Beam">Beam</td><td id="s-beam">—</td></tr>
+              <tr><td data-i18n="Draught">Draught</td><td id="s-draught">—</td></tr>
+              <tr><td data-i18n="Draft from voyage">Draft from voyage</td><td id="s-draught-cur">—</td></tr>
             </tbody>
           </table>
         </div>
         <div>
-          <h3>Tonnage</h3>
+          <h3 data-i18n="Tonnage">Tonnage</h3>
           <table class="kv">
             <tbody>
-              <tr><td>Gross tonnage</td><td id="s-gt">—</td></tr>
-              <tr><td>Net tonnage</td><td id="s-net">—</td></tr>
-              <tr><td>Deadweight</td><td id="s-dwt">—</td></tr>
+              <tr><td data-i18n="Gross tonnage">Gross tonnage</td><td id="s-gt">—</td></tr>
+              <tr><td data-i18n="Net tonnage">Net tonnage</td><td id="s-net">—</td></tr>
+              <tr><td data-i18n="Deadweight">Deadweight</td><td id="s-dwt">—</td></tr>
             </tbody>
           </table>
         </div>
         <div>
-          <h3>General</h3>
+          <h3 data-i18n="General">General</h3>
           <table class="kv">
             <tbody>
-              <tr><td>Ship type</td><td id="s-type">—</td></tr>
-              <tr><td>Flag state</td><td id="s-flag">—</td></tr>
-              <tr><td>Year of build</td><td id="s-built">—</td></tr>
-              <tr><td>Region</td><td id="s-region">—</td></tr>
+              <tr><td data-i18n="Ship type">Ship type</td><td id="s-type">—</td></tr>
+              <tr><td data-i18n="Flag state">Flag state</td><td id="s-flag">—</td></tr>
+              <tr><td data-i18n="Year of build">Year of build</td><td id="s-built">—</td></tr>
+              <tr><td data-i18n="Region">Region</td><td id="s-region">—</td></tr>
             </tbody>
           </table>
         </div>
       </div>
-      <p class="card-note">Particulars from public AIS registries (VesselFinder). Some fields may be blank for vessels with limited registry data.</p>
+      <p class="card-note" data-i18n="Particulars from public AIS registries (VesselFinder). Some fields may be blank for vessels with limited registry data.">Particulars from public AIS registries (VesselFinder). Some fields may be blank for vessels with limited registry data.</p>
     </section>
 
     <section class="grid-2">
       <div class="card">
-        <div class="card-head"><h2>Behavioral Insights</h2><span class="dim" id="insights-seen"></span></div>
+        <div class="card-head"><h2 data-i18n="Behavioral Insights">Behavioral Insights</h2><span class="dim" id="insights-seen"></span></div>
         <div id="insights-body" class="insights">
           <p class="tl-empty">Insights build up as this app watches each vessel (status &amp; speed sampled every ~5 min).</p>
         </div>
       </div>
       <div class="card">
-        <div class="card-head"><h2>Aboard <span id="aboard-name"></span></h2></div>
+        <div class="card-head"><h2><span data-i18n="Aboard">Aboard</span> <span id="aboard-name"></span></h2></div>
         <div class="clock" id="aboard-clock">--:--:--</div>
         <table class="kv">
           <tbody>
-            <tr><td>Local date</td><td id="aboard-date">—</td></tr>
-            <tr><td>Sunrise</td><td id="aboard-sunrise">—</td></tr>
-            <tr><td>Sunset</td><td id="aboard-sunset">—</td></tr>
-            <tr><td>Daylight</td><td id="aboard-daylight">—</td></tr>
+            <tr><td data-i18n="Local date">Local date</td><td id="aboard-date">—</td></tr>
+            <tr><td data-i18n="Sunrise">Sunrise</td><td id="aboard-sunrise">—</td></tr>
+            <tr><td data-i18n="Sunset">Sunset</td><td id="aboard-sunset">—</td></tr>
+            <tr><td data-i18n="Daylight">Daylight</td><td id="aboard-daylight">—</td></tr>
           </tbody>
         </table>
         <div class="sunset-count" id="sunset-count">—</div>
@@ -276,20 +282,20 @@
 
     <section id="weather" class="card">
       <div class="card-head">
-        <h2>Weather at Position</h2>
+        <h2 data-i18n="Weather at Position">Weather at Position</h2>
         <span class="dim" id="weather-updated"></span>
       </div>
       <div id="weather-grid" class="weather-grid">
-        <div class="w-item"><span class="w-icon">🌡️</span><span class="w-val" id="w-temp">—</span><span class="w-label">Air temp</span></div>
-        <div class="w-item"><span class="w-icon">💨</span><span class="w-val" id="w-wind">—</span><span class="w-label">Wind speed</span></div>
-        <div class="w-item"><span class="w-icon">🧭</span><span class="w-val" id="w-wdir">—</span><span class="w-label">Wind dir</span></div>
-        <div class="w-item"><span class="w-icon">💨</span><span class="w-val" id="w-gust">—</span><span class="w-label">Wind gusts</span></div>
+        <div class="w-item"><span class="w-icon">🌡️</span><span class="w-val" id="w-temp">—</span><span class="w-label" data-i18n="Air temp">Air temp</span></div>
+        <div class="w-item"><span class="w-icon">💨</span><span class="w-val" id="w-wind">—</span><span class="w-label" data-i18n="Wind speed">Wind speed</span></div>
+        <div class="w-item"><span class="w-icon">🧭</span><span class="w-val" id="w-wdir">—</span><span class="w-label" data-i18n="Wind dir">Wind dir</span></div>
+        <div class="w-item"><span class="w-icon">💨</span><span class="w-val" id="w-gust">—</span><span class="w-label" data-i18n="Wind gusts">Wind gusts</span></div>
       </div>
-      <p class="card-note">Weather from Open-Meteo for the vessel's reported area. Updates periodically.</p>
+      <p class="card-note" data-i18n="Weather from Open-Meteo for the vessel's reported area. Updates periodically.">Weather from Open-Meteo for the vessel's reported area. Updates periodically.</p>
     </section>
 
     <section id="discover" class="card">
-      <div class="card-head"><h2>Discover famous superyachts</h2></div>
+      <div class="card-head"><h2 data-i18n="Discover famous superyachts">Discover famous superyachts</h2></div>
       <div class="discover-grid" id="discover-grid"></div>
     </section>
 
@@ -298,7 +304,7 @@
   <footer class="footer">
     <div class="container">
       <p>Data sources: VesselFinder AIS · Open-Meteo · OpenStreetMap. Vessel lookups by IMO via local proxy (<code>server.js</code>).</p>
-      <p class="dim">For informational purposes only — positions may be delayed or approximated. Verify with official AIS providers before navigation decisions.</p>
+      <p class="dim" data-i18n="For informational purposes only — positions may be delayed or approximated. Verify with official AIS providers before navigation decisions.">For informational purposes only — positions may be delayed or approximated. Verify with official AIS providers before navigation decisions.</p>
     </div>
   </footer>
 
