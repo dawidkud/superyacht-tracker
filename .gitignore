@@ -1,0 +1,5 @@
+node_modules/
+photos/
+*.log
+.DS_Store
+.env

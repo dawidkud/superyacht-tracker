@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Superyacht Tracker — ANDROMEDA &amp; fleet</title>
+  <meta name="description" content="Track superyachts and vessels by IMO number with live AIS position, details and weather.">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚓</text></svg>">
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <div class="brand">
+        <span class="brand-mark">⚓</span>
+        <span class="brand-name">Superyacht <strong>Tracker</strong></span>
+      </div>
+      <nav class="topnav">
+        <a href="#map">Map</a>
+        <a href="#board">Fleet</a>
+        <a href="#timeline">Activity</a>
+      </nav>
+      <select class="theme-select" id="theme-select" aria-label="Colour theme" title="Colour theme">
+        <option value="midnight">🌙 Midnight</option>
+        <option value="daylight">☀️ Daylight</option>
+        <option value="emerald">🌿 Emerald</option>
+        <option value="sunset">🌇 Sunset</option>
+      </select>
+      <form class="add-bar" id="add-form">
+        <input id="imo-input" inputmode="numeric" pattern="[0-9]{7}" maxlength="7"
+               placeholder="Add vessel by IMO… e.g. 9692545" autocomplete="off">
+        <button type="submit" id="add-btn">+ Track</button>
+      </form>
+    </div>
+  </header>
+
+  <section class="fleet-strip" id="fleet-strip" aria-label="Tracked vessels">
+    <div class="fleet-scroll" id="fleet-scroll"></div>
+    <p class="fleet-hint" id="fleet-hint">No vessels tracked yet — add one by IMO number above.</p>
+    <div class="stats-bar" id="stats-bar"></div>
+  </section>
+
+  <section class="hero">
+    <div class="container">
+      <div class="hero-grid">
+        <div class="hero-photo">
+          <img src="andromeda.jpg" alt="" id="vessel-photo">
+          <span class="status-pill" id="nav-status-pill">—</span>
+        </div>
+        <div class="hero-info">
+          <div class="flag-row">
+            <span class="flag" id="flag-badge">🏴</span>
+            <span class="vessel-type" id="vessel-type">—</span>
+          </div>
+          <h1 class="vessel-name" id="vessel-name">—</h1>
+          <p class="vessel-sub" id="vessel-sub">—</p>
+
+          <div class="hero-stats">
+            <div class="stat">
+              <span class="stat-value" id="stat-loa">—</span>
+              <span class="stat-label">Length</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="stat-beam">—</span>
+              <span class="stat-label">Beam</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="stat-gt">—</span>
+              <span class="stat-label">Gross Tons</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="stat-built">—</span>
+              <span class="stat-label">Built</span>
+            </div>
+          </div>
+
+          <dl class="hero-facts">
+            <div class="fact">
+              <dt>Navigation status</dt>
+              <dd id="nav-status">—</dd>
+            </div>
+            <div class="fact">
+              <dt>Region</dt>
+              <dd id="region">—</dd>
+            </div>
+            <div class="fact">
+              <dt>Speed / Course</dt>
+              <dd><span id="sog">—</span> kn / <span id="cog">—</span>°</dd>
+            </div>
+            <div class="fact">
+              <dt>Destination</dt>
+              <dd id="destination">—</dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <main class="container">
+
+    <section id="map" class="card map-card">
+      <div class="card-head">
+        <h2>Position &amp; Tracking</h2>
+        <div class="tabs">
+          <button class="tab active" id="tab-live">Live track</button>
+          <button class="tab" id="tab-fleet">Fleet view</button>
+        </div>
+      </div>
+      <div id="map-live" class="map-wrap">
+        <div id="vfmap"></div>
+        <p class="map-note">Live AIS position and 24&nbsp;h track of the selected vessel via VesselFinder · Map data © OpenStreetMap contributors</p>
+      </div>
+      <div id="map-fleet" class="map-wrap hidden">
+        <div id="fleetmap"></div>
+        <p class="map-note">Fleet overview — boat markers are rotated to heading and colour-coded by status; circles show the ~1° position uncertainty of the free AIS feed. Use <em>Live track</em> for the precise track of a selected vessel.</p>
+      </div>
+    </section>
+
+    <section id="board" class="card">
+      <div class="card-head">
+        <h2>Fleet Board</h2>
+        <span class="dim" id="board-count"></span>
+      </div>
+      <div class="table-wrap">
+        <table class="board">
+          <thead>
+            <tr>
+              <th data-sort="name">Vessel</th>
+              <th data-sort="type">Type</th>
+              <th data-sort="status">Status</th>
+              <th data-sort="sog">SOG</th>
+              <th data-sort="cog">COG</th>
+              <th data-sort="destination">Destination</th>
+              <th data-sort="eta">ETA</th>
+              <th data-sort="lastSeen">Last update</th>
+            </tr>
+          </thead>
+          <tbody id="board-body"></tbody>
+        </table>
+      </div>
+      <p class="card-note">Click a row to focus the vessel · Click column headers to sort.</p>
+    </section>
+
+    <section id="timeline" class="card">
+      <div class="card-head">
+        <h2>Fleet Activity</h2>
+        <button class="mini-btn" id="timeline-clear">Clear</button>
+      </div>
+      <div class="timeline" id="timeline"></div>
+      <p class="card-note">Events are recorded as this app observes each vessel during refreshes (status, speed and destination changes).</p>
+    </section>
+
+    <section class="grid-2">
+      <div class="card">
+        <div class="card-head"><h2>Voyage</h2></div>
+        <table class="kv">
+          <tbody>
+            <tr><td>Destination</td><td id="v-dest">—</td></tr>
+            <tr><td>ETA</td><td id="v-eta">—</td></tr>
+            <tr><td>Navigation status</td><td id="v-status">—</td></tr>
+            <tr><td>Speed over ground</td><td><span id="v-sog">—</span> kn</td></tr>
+            <tr><td>Course over ground</td><td><span id="v-cog">—</span>°</td></tr>
+            <tr><td>Current draught</td><td id="v-draught">—</td></tr>
+            <tr><td>Position received</td><td id="v-lastrep">—</td></tr>
+            <tr><td>Last port</td><td id="v-lastport">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Identification</h2></div>
+        <table class="kv">
+          <tbody>
+            <tr><td>Vessel name</td><td id="i-name">—</td></tr>
+            <tr><td>IMO number</td><td id="i-imo">—</td></tr>
+            <tr><td>MMSI</td><td id="i-mmsi">—</td></tr>
+            <tr><td>Callsign</td><td id="i-callsign">—</td></tr>
+            <tr><td>Ship type</td><td id="i-type">—</td></tr>
+            <tr><td>Flag state</td><td id="i-flag">—</td></tr>
+            <tr><td>Approx. position</td><td id="i-pos">—</td></tr>
+            <tr><td>Data source</td><td id="i-source">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="specs" class="card">
+      <div class="card-head"><h2>Vessel Particulars</h2></div>
+      <div class="spec-grid">
+        <div>
+          <h3>Dimensions</h3>
+          <table class="kv">
+            <tbody>
+              <tr><td>Length overall</td><td id="s-loa">—</td></tr>
+              <tr><td>Beam</td><td id="s-beam">—</td></tr>
+              <tr><td>Draught</td><td id="s-draught">—</td></tr>
+              <tr><td>Draft from voyage</td><td id="s-draught-cur">—</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <h3>Tonnage</h3>
+          <table class="kv">
+            <tbody>
+              <tr><td>Gross tonnage</td><td id="s-gt">—</td></tr>
+              <tr><td>Net tonnage</td><td id="s-net">—</td></tr>
+              <tr><td>Deadweight</td><td id="s-dwt">—</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <h3>General</h3>
+          <table class="kv">
+            <tbody>
+              <tr><td>Ship type</td><td id="s-type">—</td></tr>
+              <tr><td>Flag state</td><td id="s-flag">—</td></tr>
+              <tr><td>Year of build</td><td id="s-built">—</td></tr>
+              <tr><td>Region</td><td id="s-region">—</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p class="card-note">Particulars from public AIS registries (VesselFinder). Some fields may be blank for vessels with limited registry data.</p>
+    </section>
+
+    <section id="weather" class="card">
+      <div class="card-head">
+        <h2>Weather at Position</h2>
+        <span class="dim" id="weather-updated"></span>
+      </div>
+      <div id="weather-grid" class="weather-grid">
+        <div class="w-item"><span class="w-icon">🌡️</span><span class="w-val" id="w-temp">—</span><span class="w-label">Air temp</span></div>
+        <div class="w-item"><span class="w-icon">💨</span><span class="w-val" id="w-wind">—</span><span class="w-label">Wind speed</span></div>
+        <div class="w-item"><span class="w-icon">🧭</span><span class="w-val" id="w-wdir">—</span><span class="w-label">Wind dir</span></div>
+        <div class="w-item"><span class="w-icon">💨</span><span class="w-val" id="w-gust">—</span><span class="w-label">Wind gusts</span></div>
+      </div>
+      <p class="card-note">Weather from Open-Meteo for the vessel's reported area. Updates periodically.</p>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>Data sources: VesselFinder AIS · Open-Meteo · OpenStreetMap. Vessel lookups by IMO via local proxy (<code>server.js</code>).</p>
+      <p class="dim">For informational purposes only — positions may be delayed or approximated. Verify with official AIS providers before navigation decisions.</p>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
