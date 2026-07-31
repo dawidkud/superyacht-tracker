@@ -14,6 +14,7 @@ const zlib = require("zlib");
 
 const ROOT = __dirname;
 const PORT = process.env.PORT || 8123;
+const HOST = process.env.PORT ? "0.0.0.0" : "127.0.0.1";
 const PHOTO_DIR = path.join(ROOT, "photos");
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
@@ -285,8 +286,8 @@ http
 
     serveStatic(req, res, pathname);
   })
-  .listen(PORT, "127.0.0.1", () => {
+  .listen(PORT, HOST, () => {
     console.log(
-      "Superyacht Tracker running at http://127.0.0.1:" + PORT + " (Ctrl-C to stop)"
+      "Superyacht Tracker running at http://" + HOST + ":" + PORT + " (Ctrl-C to stop)"
     );
   });
