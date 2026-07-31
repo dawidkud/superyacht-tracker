@@ -461,6 +461,32 @@ function saveStats(s) {
 }
 
 const GAP_MS = 45 * 60000;
+const histKey = (imo) => "tracker_hist_" + imo;
+const HIST_MAX = 300;
+
+function loadHist(imo) {
+  try {
+    const a = JSON.parse(localStorage.getItem(histKey(imo)));
+    return Array.isArray(a) ? a : [];
+  } catch (_) {
+    return [];
+  }
+}
+function saveHist(imo, arr) {
+  try {
+    localStorage.setItem(histKey(imo), JSON.stringify(arr.slice(-HIST_MAX)));
+  } catch (_) {}
+}
+function recordSample(v, now) {
+  const p = v.position;
+  if (!p || p.lat == null || p.lon == null) return;
+  const h = loadHist(v.imo);
+  const last = h[h.length - 1];
+  if (!last || last.lat !== p.lat || last.lon !== p.lon || last.sog !== p.sog || last.cog !== p.cog) {
+    h.push({ t: now, lat: p.lat, lon: p.lon, sog: p.sog, cog: p.cog });
+    saveHist(v.imo, h);
+  }
+}
 
 function updateStats(v) {
   if (!v || !v.position) return;
@@ -485,6 +511,7 @@ function updateStats(v) {
   if (p.lat != null && p.lon != null && st.prevPos) {
     st.distanceNm += haversine(st.prevPos.lat, st.prevPos.lon, p.lat, p.lon);
   }
+  recordSample(v, now);
   if (p.sog != null) {
     st.sogSum += p.sog;
     st.sogN++;
@@ -877,6 +904,16 @@ const I18N = {
     "The world's largest yacht by internal volume (15,917 GT); its swimming pool set a Guinness World Record.": "Największy jacht świata pod względem pojemności (15 917 GT); jego basen ustanowił rekord Guinnessa.",
     "The yacht that started this tracker — a 107 m German-built superyacht.": "Jacht, od którego zaczął się ten tracker — 107-metrowy superjacht zbudowany w Niemczech.",
     "Iconic DynaRig sailing yacht with self-standing carbon masts and about 2,800 m² of sail.": "Kultowy żaglowiec DynaRig z samonośnymi masztami z włókna węglowego i ok. 2800 m² żagli.",
+    "Wave height": "Wysokość fali", "Wave period": "Okres fali", "Sea temp": "Temp. morza", "Current": "Prąd",
+    "Weather and sea state from Open-Meteo for the vessel's reported area. Updates periodically.": "Pogoda i stan morza z Open-Meteo dla rejonu jednostki. Odświeżanie okresowe.",
+    "Fleet Radar": "Radar floty",
+    "Radar centred on the selected vessel — blips show the bearing and distance of every tracked vessel. Approximate AIS positions.": "Radar wyśrodkowany na wybranej jednostce — punkty pokazują namiar i odległość każdej śledzonej jednostki. Przybliżone pozycje AIS.",
+    "Track Replay": "Odtwarzanie trasy",
+    "Playback of positions recorded by this app since it started watching the fleet.": "Odtwarzanie pozycji zarejestrowanych przez aplikację od początku obserwacji floty.",
+    "No recorded positions yet — keep the app open while the fleet is watched.": "Brak zarejestrowanych pozycji — trzymaj aplikację otwartą, aby obserwować flotę.",
+    "Voyage history": "Historia rejsu", "No voyage history recorded yet.": "Brak historii rejsu.",
+    "🔗 Share fleet": "🔗 Udostępnij flotę", "Fleet link copied to clipboard": "Skopiowano link do floty",
+    "▶ Replay": "▶ Odtwórz", "Centre: {name}": "Środek: {name}",
   },
   it: {
     "Map": "Mappa", "Fleet": "Flotta", "Activity": "Attività", "Discover": "Scopri",
@@ -951,6 +988,16 @@ const I18N = {
     "The world's largest yacht by internal volume (15,917 GT); its swimming pool set a Guinness World Record.": "Il più grande yacht al mondo per volume interno (15.917 GT); la sua piscina ha stabilito un Guinness World Record.",
     "The yacht that started this tracker — a 107 m German-built superyacht.": "Lo yacht da cui è nato questo tracker — un superyacht tedesco di 107 m.",
     "Iconic DynaRig sailing yacht with self-standing carbon masts and about 2,800 m² of sail.": "Iconico yacht a vela DynaRig con alberi in carbonio autoportanti e circa 2.800 m² di vela.",
+    "Wave height": "Altezza onda", "Wave period": "Periodo onda", "Sea temp": "Temp. mare", "Current": "Corrente",
+    "Weather and sea state from Open-Meteo for the vessel's reported area. Updates periodically.": "Meteo e stato del mare da Open-Meteo per l'area della nave. Aggiornamenti periodici.",
+    "Fleet Radar": "Radar flotta",
+    "Radar centred on the selected vessel — blips show the bearing and distance of every tracked vessel. Approximate AIS positions.": "Radar centrato sulla nave selezionata — i blip mostrano rilevamento e distanza di ogni nave tracciata. Posizioni AIS approssimative.",
+    "Track Replay": "Riproduzione rotta",
+    "Playback of positions recorded by this app since it started watching the fleet.": "Riproduzione delle posizioni registrate dall'app dall'inizio del monitoraggio della flotta.",
+    "No recorded positions yet — keep the app open while the fleet is watched.": "Nessuna posizione registrata — tieni l'app aperta mentre la flotta viene monitorata.",
+    "Voyage history": "Cronologia viaggio", "No voyage history recorded yet.": "Nessuna cronologia di viaggio registrata.",
+    "🔗 Share fleet": "🔗 Condividi flotta", "Fleet link copied to clipboard": "Link flotta copiato negli appunti",
+    "▶ Replay": "▶ Riproduci", "Centre: {name}": "Centro: {name}",
   },
 };
 
@@ -1058,6 +1105,280 @@ function applyLang() {
   applyLang();
 }
 
+/* ---------------- voyage log ---------------- */
+
+function renderVoyageLog(v) {
+  const body = $("voyage-log-body");
+  if (!body) return;
+  if (!v) {
+    body.innerHTML = '<p class="tl-empty">—</p>';
+    return;
+  }
+  const evs = loadEvents()
+    .filter((e) => e.imo === v.imo && /^Destination:/.test(e.text || ""))
+    .slice(0, 4)
+    .reverse();
+  let html = "";
+  if (v.lastPort) {
+    html += vlLeg(
+      relativeTime(parseMdhms(v.lastPortAtd)),
+      "⚓ " + v.lastPort + (v.lastPortAtd ? ' <span class="dim">(' + t("ATD") + " " + v.lastPortAtd + ")</span>" : "")
+    );
+  }
+  evs.forEach((e) => {
+    html += vlLeg(relativeTime(new Date(e.t)), "→ " + e.text.replace(/^Destination:\s*/, ""));
+  });
+  if (v.destination) {
+    html += vlLeg(
+      relativeTime(parseMdhms(v.eta)),
+      '📍 <span class="vl-cur">' + escapeHtml(v.destination) + "</span>" +
+        (v.eta ? ' <span class="dim">(' + t("ETA") + " " + v.eta + ")</span>" : "")
+    );
+  }
+  body.innerHTML = html || '<p class="tl-empty">' + t("No voyage history recorded yet.") + "</p>";
+}
+function vlLeg(time, text) {
+  return '<div class="vl-leg"><span class="vl-time">' + time + '</span><span class="vl-dot"></span><span class="vl-text">' + text + "</span></div>";
+}
+
+/* ---------------- shareable fleet link ---------------- */
+
+function updateShareUrl() {
+  try {
+    const u = new URL(location.href);
+    if (state.vessels.length) u.searchParams.set("fleet", state.vessels.map((v) => v.imo).join(","));
+    else u.searchParams.delete("fleet");
+    history.replaceState(null, "", u.toString());
+  } catch (_) {}
+}
+$("share-btn").addEventListener("click", async () => {
+  const u = new URL(location.href);
+  u.searchParams.set("fleet", state.vessels.map((v) => v.imo).join(","));
+  const url = u.origin + u.pathname + "?" + u.searchParams.toString();
+  try {
+    await navigator.clipboard.writeText(url);
+    flash(t("Fleet link copied to clipboard"));
+  } catch (_) {
+    prompt("Superyacht Tracker", url);
+  }
+});
+
+/* ---------------- track replay ---------------- */
+
+const REPLAY = {
+  map: null,
+  interval: null,
+  playing: false,
+  data: [],
+  t: 0,
+  t0: 0,
+  t1: 1,
+  speed: 3,
+  markers: {},
+  trails: {},
+  idx: {},
+};
+
+function openReplay() {
+  const data = state.vessels
+    .map((v) => ({ v, hist: loadHist(v.imo) }))
+    .filter((x) => x.hist.length >= 2);
+  if (!data.length) {
+    flash(t("No recorded positions yet — keep the app open while the fleet is watched."));
+    return;
+  }
+  $("replay-overlay").classList.remove("hidden");
+  if (!REPLAY.map) {
+    REPLAY.map = L.map("replay-map").setView([30, 0], 3);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap" }).addTo(REPLAY.map);
+  }
+  const bounds = [];
+  const colors = ["#2fa8ff", "#19d3a5", "#f0b429", "#f87171", "#a78bfa", "#f9a8d4", "#fb923c", "#4ade80"];
+  let t0 = Infinity;
+  let t1 = -Infinity;
+  REPLAY.data = data;
+  data.forEach((d, i) => {
+    const c = colors[i % colors.length];
+    if (!REPLAY.markers[d.v.imo]) {
+      REPLAY.markers[d.v.imo] = L.marker([d.hist[0].lat, d.hist[0].lon], {
+        icon: L.divIcon({
+          className: "",
+          html: '<div style="width:11px;height:11px;border-radius:50%;background:' + c + ';box-shadow:0 0 8px ' + c + '"></div>',
+          iconSize: [11, 11],
+          iconAnchor: [5, 5],
+        }),
+      }).addTo(REPLAY.map);
+      REPLAY.trails[d.v.imo] = L.polyline([], { color: c, weight: 2, opacity: 0.85 }).addTo(REPLAY.map);
+      REPLAY.idx[d.v.imo] = 0;
+    }
+    d.hist.forEach((s) => {
+      t0 = Math.min(t0, s.t);
+      t1 = Math.max(t1, s.t);
+      bounds.push([s.lat, s.lon]);
+    });
+  });
+  if (bounds.length) REPLAY.map.fitBounds(bounds, { padding: [30, 30] });
+  REPLAY.t0 = t0;
+  REPLAY.t1 = Math.max(t1, t0 + 60000);
+  REPLAY.t = t0;
+  REPLAY.playing = true;
+  REPLAY.speed = +$("replay-speed").value;
+  $("replay-play").textContent = "⏸";
+  $("replay-fill").style.width = "0%";
+  fillText("replay-t0", new Date(REPLAY.t0).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+  fillText("replay-t1", new Date(REPLAY.t1).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+  clearInterval(REPLAY.interval);
+  REPLAY.interval = setInterval(replayTick, 250);
+}
+
+function replayTick() {
+  if (!REPLAY.playing) return;
+  const span = REPLAY.t1 - REPLAY.t0;
+  REPLAY.t += span * 0.004 * REPLAY.speed;
+  if (REPLAY.t >= REPLAY.t1) {
+    REPLAY.t = REPLAY.t1;
+    REPLAY.playing = false;
+    $("replay-play").textContent = "▶";
+  }
+  $("replay-fill").style.width = ((REPLAY.t - REPLAY.t0) / span) * 100 + "%";
+  REPLAY.data.forEach((d) => {
+    const h = d.hist;
+    let i = REPLAY.idx[d.v.imo] || 0;
+    while (i < h.length - 1 && h[i + 1].t <= REPLAY.t) i++;
+    REPLAY.idx[d.v.imo] = i;
+    REPLAY.markers[d.v.imo].setLatLng([h[i].lat, h[i].lon]);
+    REPLAY.trails[d.v.imo].setLatLngs(h.slice(0, i + 1).map((s) => [s.lat, s.lon]));
+  });
+}
+
+function closeReplay() {
+  clearInterval(REPLAY.interval);
+  REPLAY.playing = false;
+  $("replay-overlay").classList.add("hidden");
+}
+$("replay-btn").addEventListener("click", () => ensureLeaflet(openReplay));
+$("replay-close").addEventListener("click", closeReplay);
+$("replay-play").addEventListener("click", () => {
+  if (!REPLAY.playing && REPLAY.t >= REPLAY.t1) REPLAY.t = REPLAY.t0;
+  REPLAY.playing = !REPLAY.playing;
+  $("replay-play").textContent = REPLAY.playing ? "⏸" : "▶";
+});
+$("replay-speed").addEventListener("change", (e) => {
+  REPLAY.speed = +e.target.value;
+});
+$("replay-overlay").addEventListener("click", (e) => {
+  if (e.target === $("replay-overlay")) closeReplay();
+});
+
+/* ---------------- radar view ---------------- */
+
+let radarRAF = null;
+let radarAngle = 0;
+
+function updateRadarCenter() {
+  const v = selected();
+  fillText("radar-center", v ? tF("Centre: {name}", { name: v.name }) : "");
+}
+function startRadar() {
+  if (radarRAF) return;
+  const loop = () => {
+    radarTick();
+    radarRAF = requestAnimationFrame(loop);
+  };
+  loop();
+}
+function radarTick() {
+  const c = $("radar-canvas");
+  if (!c) return;
+  const ctx = c.getContext("2d");
+  const W = c.width;
+  const H = c.height;
+  const cx = W / 2;
+  const cy = H / 2;
+  const ref = selected();
+  const refPos = ref && ref.position && ref.position.lat != null ? ref.position : null;
+  const vessels = state.vessels.filter(
+    (v) => v.position && v.position.lat != null && v.position.lon != null && v.imo !== (ref && ref.imo)
+  );
+  let maxD = 80;
+  if (refPos) {
+    for (const v of vessels) {
+      const d = haversine(refPos.lat, refPos.lon, v.position.lat, v.position.lon);
+      if (d > maxD) maxD = d;
+    }
+    maxD = Math.max(maxD, 30);
+  }
+  const R = W / 2 - 18;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = "#050a12";
+  ctx.fillRect(0, 0, W, H);
+  for (let r = 1; r <= 5; r++) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * (r / 5), 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(47,168,255,.16)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  ctx.strokeStyle = "rgba(47,168,255,.10)";
+  ctx.beginPath();
+  ctx.moveTo(cx, 0);
+  ctx.lineTo(cx, H);
+  ctx.moveTo(0, cy);
+  ctx.lineTo(W, cy);
+  ctx.stroke();
+  ctx.fillStyle = "#8fa2bd";
+  ctx.font = "10px sans-serif";
+  ctx.fillText(maxD + " nm", cx + 5, 13);
+  ctx.fillText(Math.round(maxD / 2) + " nm", cx + 5, cy + 4);
+  ctx.fillText("N", cx - 4, 13);
+  radarAngle = (radarAngle + 1.2) % 360;
+  const rad = ((radarAngle - 90) * Math.PI) / 180;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.arc(cx, cy, R, rad - 0.5, rad);
+  ctx.closePath();
+  ctx.fillStyle = "rgba(47,168,255,.09)";
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + Math.cos(rad) * R, cy + Math.sin(rad) * R);
+  ctx.strokeStyle = "rgba(47,168,255,.55)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  if (refPos) {
+    for (const v of vessels) {
+      const d = haversine(refPos.lat, refPos.lon, v.position.lat, v.position.lon);
+      const bear = initialBearing(refPos.lat, refPos.lon, v.position.lat, v.position.lon);
+      const rr = (d / maxD) * R;
+      const a = ((bear - 90) * Math.PI) / 180;
+      const x = cx + Math.cos(a) * rr;
+      const y = cy + Math.sin(a) * rr;
+      const color = DOT_COLOR[statusCategory(v.navStatus)];
+      const ping = (Date.now() / 500) % 1;
+      ctx.beginPath();
+      ctx.arc(x, y, 4 + ping * 10, 0, Math.PI * 2);
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = 0.5 * (1 - ping);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.beginPath();
+      ctx.arc(x, y, 5, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.fillStyle = "#e8eef7";
+      ctx.font = "11px sans-serif";
+      ctx.fillText(v.name, x + 9, y + 4);
+    }
+    ctx.beginPath();
+    ctx.arc(cx, cy, 7, 0, Math.PI * 2);
+    ctx.fillStyle = "#f0b429";
+    ctx.fill();
+    ctx.fillStyle = "#e8eef7";
+    ctx.font = "12px sans-serif";
+    ctx.fillText(ref.name, cx + 12, cy + 5);
+  }
+}
+
 /* ---------------- fetching ---------------- */
 
 async function fetchVessel(imo) {
@@ -1111,6 +1432,7 @@ async function addVessel(imo) {
     state.vessels.push(v);
     saveData(v);
     saveIMOs();
+    updateShareUrl();
     logEvent(v.imo, v.name, t("Added to fleet"));
     renderFleetStrip();
     renderBoard();
@@ -1131,6 +1453,7 @@ function removeVessel(imo) {
   state.vessels = state.vessels.filter((v) => v.imo !== imo);
   localStorage.removeItem(dataKey(imo));
   saveIMOs();
+  updateShareUrl();
   renderFleetStrip();
   renderBoard();
   renderStats();
@@ -1289,8 +1612,10 @@ function renderSelected() {
 
   renderLiveMap();
   renderVoyageIntelligence(v);
+  renderVoyageLog(v);
   renderInsights(v);
   renderAboard(v);
+  updateRadarCenter();
   loadWeather(v);
 }
 
@@ -1501,19 +1826,31 @@ async function loadWeather(v) {
   if (p.lat == null || p.lon == null) return reset();
   const grid = $("weather-grid");
   grid.querySelectorAll(".w-error").forEach((n) => n.remove());
-  const url =
+  const airUrl =
     "https://api.open-meteo.com/v1/forecast?latitude=" + p.lat + "&longitude=" + p.lon +
     "&current=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m&wind_speed_unit=kn";
+  const seaUrl =
+    "https://marine-api.open-meteo.com/v1/marine?latitude=" + p.lat + "&longitude=" + p.lon +
+    "&current=wave_height,wave_direction,wave_period,sea_surface_temperature,ocean_current_velocity,ocean_current_direction";
   try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("weather request failed");
-    const data = await res.json();
+    const [airRes, seaRes] = await Promise.all([fetch(airUrl), fetch(seaUrl)]);
+    if (!airRes.ok || !seaRes.ok) throw new Error("weather request failed");
+    const [air, sea] = await Promise.all([airRes.json(), seaRes.json()]);
     if (token !== state.weatherToken) return;
-    const c = data.current;
-    fillHtml("w-temp", Math.round(c.temperature_2m) + "<small>°C</small>");
-    fillHtml("w-wind", Math.round(c.wind_speed_10m) + "<small> kn</small>");
-    fillHtml("w-wdir", c.wind_direction_10m + "° <small>" + compass(c.wind_direction_10m) + "</small>");
-    fillHtml("w-gust", Math.round(c.wind_gusts_10m) + "<small> kn</small>");
+    const a = air.current;
+    const s = sea.current || {};
+    fillHtml("w-temp", Math.round(a.temperature_2m) + "<small>°C</small>");
+    fillHtml("w-wind", Math.round(a.wind_speed_10m) + "<small> kn</small>");
+    fillHtml("w-wdir", a.wind_direction_10m + "° <small>" + compass(a.wind_direction_10m) + "</small>");
+    fillHtml("w-gust", Math.round(a.wind_gusts_10m) + "<small> kn</small>");
+    fillHtml("w-wave", (s.wave_height != null ? s.wave_height.toFixed(1) : "—") + "<small> m</small>");
+    fillHtml("w-wperiod", (s.wave_period != null ? s.wave_period.toFixed(1) : "—") + "<small> s</small>");
+    fillHtml("w-sst", (s.sea_surface_temperature != null ? Math.round(s.sea_surface_temperature) : "—") + "<small>°C</small>");
+    fillHtml(
+      "w-current",
+      (s.ocean_current_velocity != null ? (s.ocean_current_velocity * 1.94384).toFixed(1) : "—") +
+        "<small> kn" + (s.ocean_current_direction != null ? " " + compass(s.ocean_current_direction) : "") + "</small>"
+    );
     fillText("weather-updated", tF("Updated {t}", { t: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }));
   } catch (err) {
     if (token !== state.weatherToken) return;
@@ -1558,6 +1895,14 @@ function updateLastReport() {
 
 async function init() {
   let imos = loadIMOs();
+  const fleetParam = new URLSearchParams(location.search).get("fleet");
+  if (fleetParam) {
+    const parsed = fleetParam
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => /^\d{7}$/.test(s));
+    if (parsed.length) imos = parsed;
+  }
   if (!imos.length) imos = ["9692545"];
   for (const imo of imos) {
     const cached = loadData(imo);
@@ -1584,6 +1929,8 @@ async function init() {
   renderGhostToggle();
   renderDiscover();
   checkProximity();
+  updateShareUrl();
+  startRadar();
   renderSelected();
   refreshAll();
   setInterval(updateLastReport, 30000);

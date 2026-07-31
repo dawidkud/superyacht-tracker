@@ -57,6 +57,7 @@
         </select>
       </label>
       <span id="encounters"></span>
+      <button class="mini-btn" id="share-btn" data-i18n="🔗 Share fleet">🔗 Share fleet</button>
     </div>
   </section>
 
@@ -131,6 +132,7 @@
             <input type="checkbox" id="ghost-toggle">
             <span class="ghost-label" data-i18n="👻 Ghost track">👻 Ghost track</span>
           </label>
+          <button class="mini-btn" id="replay-btn" data-i18n="▶ Replay">▶ Replay</button>
         </div>
       </div>
       <div id="map-live" class="map-wrap">
@@ -141,6 +143,15 @@
         <div id="fleetmap"></div>
         <p class="map-note" data-i18n="Fleet overview — boat markers are rotated to heading and colour-coded by status; circles show the ~1° position uncertainty of the free AIS feed. Use Live track for the precise track of a selected vessel.">Fleet overview — boat markers are rotated to heading and colour-coded by status; circles show the ~1° position uncertainty of the free AIS feed. Use <em>Live track</em> for the precise track of a selected vessel.</p>
       </div>
+    </section>
+
+    <section id="radar" class="card">
+      <div class="card-head">
+        <h2 data-i18n="Fleet Radar">Fleet Radar</h2>
+        <span class="dim" id="radar-center"></span>
+      </div>
+      <div class="radar-wrap"><canvas id="radar-canvas" width="560" height="560"></canvas></div>
+      <p class="card-note" data-i18n="Radar centred on the selected vessel — blips show the bearing and distance of every tracked vessel. Approximate AIS positions.">Radar centred on the selected vessel — blips show the bearing and distance of every tracked vessel. Approximate AIS positions.</p>
     </section>
 
     <section id="board" class="card">
@@ -198,6 +209,10 @@
         <div class="voyage-progress" id="voyage-progress">
           <div class="vp-track"><div class="vp-fill" id="vp-fill"></div><span class="vp-now" id="vp-now"></span></div>
           <div class="vp-labels"><span id="vp-atd">—</span><span id="vp-eta">—</span></div>
+        </div>
+        <div class="voyage-log" id="voyage-log">
+          <div class="vl-head" data-i18n="Voyage history">Voyage history</div>
+          <div id="voyage-log-body"><p class="tl-empty">—</p></div>
         </div>
         <p class="card-note" data-i18n="On course: heading vs the bearing to destination (geocoded via OpenStreetMap).">"On course" compares the vessel's heading with the bearing to its destination (geocoded via OpenStreetMap).</p>
       </div>
@@ -290,8 +305,12 @@
         <div class="w-item"><span class="w-icon">💨</span><span class="w-val" id="w-wind">—</span><span class="w-label" data-i18n="Wind speed">Wind speed</span></div>
         <div class="w-item"><span class="w-icon">🧭</span><span class="w-val" id="w-wdir">—</span><span class="w-label" data-i18n="Wind dir">Wind dir</span></div>
         <div class="w-item"><span class="w-icon">💨</span><span class="w-val" id="w-gust">—</span><span class="w-label" data-i18n="Wind gusts">Wind gusts</span></div>
+        <div class="w-item"><span class="w-icon">🌊</span><span class="w-val" id="w-wave">—</span><span class="w-label" data-i18n="Wave height">Wave height</span></div>
+        <div class="w-item"><span class="w-icon">🔄</span><span class="w-val" id="w-wperiod">—</span><span class="w-label" data-i18n="Wave period">Wave period</span></div>
+        <div class="w-item"><span class="w-icon">🌡️</span><span class="w-val" id="w-sst">—</span><span class="w-label" data-i18n="Sea temp">Sea temp</span></div>
+        <div class="w-item"><span class="w-icon">🌪️</span><span class="w-val" id="w-current">—</span><span class="w-label" data-i18n="Current">Current</span></div>
       </div>
-      <p class="card-note" data-i18n="Weather from Open-Meteo for the vessel's reported area. Updates periodically.">Weather from Open-Meteo for the vessel's reported area. Updates periodically.</p>
+      <p class="card-note" data-i18n="Weather and sea state from Open-Meteo for the vessel's reported area. Updates periodically.">Weather and sea state from Open-Meteo (air + marine) for the vessel's reported area. Updates periodically.</p>
     </section>
 
     <section id="discover" class="card">
@@ -300,6 +319,29 @@
     </section>
 
   </main>
+
+  <div id="replay-overlay" class="overlay hidden">
+    <div class="overlay-card">
+      <div class="card-head">
+        <h2 data-i18n="Track Replay">Track Replay</h2>
+        <div class="head-right">
+          <button class="mini-btn" id="replay-play" title="Play / pause">▶</button>
+          <select id="replay-speed">
+            <option value="1">1×</option>
+            <option value="3" selected>3×</option>
+            <option value="8">8×</option>
+          </select>
+          <button class="mini-btn" id="replay-close">✕</button>
+        </div>
+      </div>
+      <div id="replay-map"></div>
+      <div class="replay-timeline">
+        <div class="rp-track"><div class="rp-fill" id="replay-fill"></div></div>
+        <div class="rp-times"><span id="replay-t0">—</span><span id="replay-t1">—</span></div>
+      </div>
+      <p class="card-note" data-i18n="Playback of positions recorded by this app since it started watching the fleet.">Playback of positions recorded by this app since it started watching the fleet.</p>
+    </div>
+  </div>
 
   <footer class="footer">
     <div class="container">

@@ -31,10 +31,17 @@ Live demo: **https://superyacht-tracker.onrender.com**
 
 ### Unique features
 - **Voyage intelligence** — live "arrives in …" countdown, on-course check (heading vs bearing to destination), distance to destination, and an ATD→ETA voyage progress bar
+- **Sea-state panel** — waves (height/period/direction), sea temperature and ocean current via Open-Meteo Marine API
 - **Behavioral insights** — per-vessel % time at anchor vs under way, distance covered, average/top speed, longest anchor, arrivals/departures — computed from this app's own observation history
+- **Track replay** — animated playback of the fleet's recorded positions on a map, with play/pause and speed controls
+- **Voyage history** — per-vessel journey log (last port → observed destination changes → current destination)
 - **Proximity alerts** — browser notifications and timeline events when two tracked vessels come within a set distance (5/10/25/50 nm), with live encounter chips
 - **Aboard ambient** — live local time at the vessel, sunrise/sunset at its position (NOAA solar calc), and a "sunset in …" countdown
 - **Weather at position** — live temperature, wind and gusts via Open-Meteo
+
+### Sharing & command center
+- **Shareable fleet link** — the current fleet is encoded in the URL (`?fleet=…`), so anyone can open the same fleet with one click
+- **Fleet radar** — a command-center radar view centred on the selected vessel, with pulsing, status-coloured blips and a rotating sweep
 
 ### Themes & languages
 Four switchable colour themes (Midnight, Daylight, Emerald, Sunset) via the top-bar dropdown, plus a language switch for **English, Polski and Italiano** — both persisted between visits.
