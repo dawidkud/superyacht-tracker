@@ -1,0 +1,14 @@
+{
+  "name": "superyacht-tracker",
+  "version": "1.0.0",
+  "description": "Live AIS vessel tracking by IMO number — fleet board, maps, themes and weather.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "build": "node -e \"console.log('No build step required')\""
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}
