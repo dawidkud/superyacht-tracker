@@ -4,6 +4,8 @@ Live AIS vessel tracking by **IMO number** — add any ship, watch your whole fl
 
 Live demo: **https://superyacht-tracker.onrender.com**
 
+![Superyacht Tracker — app overview](superyacht-tracker-01.png)
+
 ---
 
 ## Features
@@ -78,9 +80,11 @@ Deployed on [Render](https://render.com) (free tier) — public at
 - Auto-deploys on every push to `main`
 - Free tier sleeps after ~15 min of inactivity and wakes on the next request
 
-## Screnshot
+For an instant temporary public link, run:
 
-
+```bash
+cloudflared tunnel --url http://127.0.0.1:8123
+```
 
 ---
 
