@@ -273,6 +273,31 @@ main { padding: 10px 20px 40px; }
 }
 .lang-select:hover, .lang-select:focus { border-color: var(--accent-2); }
 .lang-select option { background: var(--card); color: var(--text); }
+.help-btn {
+  background: var(--card); border: 1px solid var(--line); color: var(--text);
+  font-size: 14px; width: 34px; height: 34px; border-radius: 8px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; transition: border 0.15s;
+}
+.help-btn:hover, .help-btn:focus { border-color: var(--accent); }
+
+/* ---------- Help overlay ---------- */
+.help-card { max-width: 720px; }
+.help-body { display: flex; flex-direction: column; gap: 18px; }
+.help-section h3 {
+  font-size: 13px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--accent);
+  margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line);
+}
+.help-section ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.help-section li {
+  position: relative; padding-left: 20px; font-size: 13.5px; color: var(--text); line-height: 1.5;
+}
+.help-section li::before {
+  content: "▹"; position: absolute; left: 0; color: var(--accent-2); font-size: 12px; top: 1px;
+}
+.help-section code {
+  background: var(--card-2); border: 1px solid var(--line); border-radius: 4px;
+  padding: 1px 5px; font-size: 12px;
+}
 .add-bar { display: flex; align-items: center; gap: 8px; }
 .add-bar input {
   width: 240px; background: var(--card); border: 1px solid var(--line);

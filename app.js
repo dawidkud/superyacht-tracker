@@ -972,6 +972,39 @@ const I18N = {
     "A 65 m yacht built by Nobiskrug in 2013.": "65-metrowy jacht zbudowany przez Nobiskrug w 2013 r.",
     "A 55 m Feadship expedition-style motor yacht launched in 2017.": "55-metrowy jacht motorowy Feadship w stylu ekspedycyjnym, zwodowany w 2017 r.",
     "A 64 m motor yacht built in 1966 — one of the world's oldest large yachts still cruising.": "64-metrowy jacht motorowy z 1966 r. — jeden z najstarszych dużych jachtów świata wciąż pływających.",
+    "Help & Guide": "Pomoc i przewodnik",
+    "Getting started": "Pierwsze kroki",
+    "Add any vessel with its 7-digit IMO number in the top bar and press + Track.": "Dodaj dowolną jednostkę, wpisując jej 7-cyfrowy numer IMO w górnym pasku i klikając + Śledź.",
+    "Examples: 9692545 (Andromeda), 1009613 (Eclipse), 9811000 (Ever Given).": "Przykłady: 9692545 (Andromeda), 1009613 (Eclipse), 9811000 (Ever Given).",
+    "Your fleet is saved in this browser and restored on your next visit.": "Twoja flota jest zapisywana w tej przeglądarce i przywracana przy następnej wizycie.",
+    "Share your whole fleet with one click using the Share fleet button — the link encodes your vessels.": "Udostępnij całą flotę jednym kliknięciem przycisku „Udostępnij flotę” — link zawiera Twoje jednostki.",
+    "Maps & tracking": "Mapy i śledzenie",
+    "Live track shows the precise AIS position and 24 h track of the selected vessel.": "„Śledzenie na żywo” pokazuje dokładną pozycję AIS i 24-godzinną trasę wybranej jednostki.",
+    "Fleet view shows every tracked vessel on one map — markers point along their heading.": "„Widok floty” pokazuje wszystkie śledzone jednostki na jednej mapie — znaczniki wskazują kierunek ruchu.",
+    "Ghost track projects where each moving vessel will be in 6 / 12 / 24 h.": "„Trasa przewidywana” pokazuje, gdzie każda poruszająca się jednostka będzie za 6 / 12 / 24 godz.",
+    "Replay plays back the positions this app has recorded since you started watching.": "„Odtwarzanie” odtwarza pozycje zarejestrowane przez aplikację od początku obserwacji.",
+    "Click a vessel on the map to open its live track.": "Kliknij jednostkę na mapie, aby otworzyć jej trasę na żywo.",
+    "Fleet management": "Zarządzanie flotą",
+    "The fleet strip and Fleet Board show every vessel; click one to focus it.": "Pasek floty i „Tabela floty” pokazują wszystkie jednostki; kliknij, aby ją zaznaczyć.",
+    "Sort the Fleet Board by any column — speed, destination, ETA, last update.": "Sortuj tabelę floty po dowolnej kolumnie — prędkość, cel, ETA, ostatnia aktualizacja.",
+    "The stats bar summarises your fleet: under way, at anchor, average speed.": "Pasek statystyk podsumowuje flotę: w drodze, na kotwicy, średnia prędkość.",
+    "Remove a vessel with the × button on its card.": "Usuń jednostkę przyciskiem × na jej karcie.",
+    "Voyage intelligence": "Inteligencja rejsu",
+    "Arrives in shows a live countdown to the reported ETA.": "„Przybędzie za” pokazuje odliczanie do podanego ETA.",
+    "On course compares the vessel's heading with the bearing to its destination.": "„Zgodny z kursem” porównuje kurs jednostki z namiarem na cel.",
+    "The progress bar tracks the voyage between the last port (ATD) and destination (ETA).": "Pasek postępu pokazuje rejs między ostatnim portem (ATD) a celem (ETA).",
+    "Voyage history lists the journey observed by this app: last port → destination changes → current destination.": "„Historia rejsu” pokazuje podróż obserwowaną przez aplikację: ostatni port → zmiany celu → obecny cel.",
+    "Insights & ambient": "Analiza i atmosfera na pokładzie",
+    "Behavioral Insights summarise time at anchor vs under way, distance, speeds, arrivals and departures.": "„Analiza zachowania” podsumowuje czas na kotwicy vs w drodze, dystans, prędkości, przybycia i odejścia.",
+    "Aboard shows the local time at the vessel, plus sunrise, sunset and daylight hours at its position.": "„Na pokładzie” pokazuje lokalny czas jednostki oraz wschód, zachód słońca i długość dnia na jej pozycji.",
+    "Weather and sea state show air temperature, wind, waves, sea temperature and currents near the vessel.": "„Pogoda” pokazuje temperaturę powietrza, wiatr, fale, temperaturę morza i prądy w pobliżu jednostki.",
+    "Alerts & radar": "Alerty i radar",
+    "Enable Alerts and set a distance to get notified when two tracked vessels come close.": "Włącz „Alerty” i ustaw dystans, aby otrzymać powiadomienie, gdy dwie jednostki się zbliżą.",
+    "The Fleet Radar shows every vessel as a blip — bearing and distance from the selected vessel.": "„Radar floty” pokazuje każdą jednostkę jako punkt — namiar i odległość od wybranej jednostki.",
+    "Discovery & settings": "Odkrywanie i ustawienia",
+    "Discover introduces a new set of famous superyachts every hour — or shuffle them yourself.": "„Odkryj” co godzinę pokazuje nowy zestaw słynnych superjachtów — możesz też je losować.",
+    "Switch colour themes and language from the top bar; your choices are remembered.": "Zmieniaj motywy kolorystyczne i język w górnym pasku — wybór jest zapamiętywany.",
+    "Positions come from free AIS and are rounded to ~1° — use Live track for a precise position.": "Pozycje pochodzą z darmowego AIS i są zaokrąglane do ~1° — dla dokładnej pozycji użyj „Śledzenia na żywo”.",
   },
   it: {
     "Map": "Mappa", "Fleet": "Flotta", "Activity": "Attività", "Discover": "Scopri",
@@ -1065,6 +1098,39 @@ const I18N = {
     "A 65 m yacht built by Nobiskrug in 2013.": "Uno yacht di 65 m costruito da Nobiskrug nel 2013.",
     "A 55 m Feadship expedition-style motor yacht launched in 2017.": "Uno yacht a motore Feadship da 55 m in stile expedition, varato nel 2017.",
     "A 64 m motor yacht built in 1966 — one of the world's oldest large yachts still cruising.": "Uno yacht a motore di 64 m costruito nel 1966 — uno dei più antichi grandi yacht del mondo ancora in navigazione.",
+    "Help & Guide": "Aiuto e guida",
+    "Getting started": "Per iniziare",
+    "Add any vessel with its 7-digit IMO number in the top bar and press + Track.": "Aggiungi una nave inserendo il suo numero IMO a 7 cifre nella barra in alto e premendo + Traccia.",
+    "Examples: 9692545 (Andromeda), 1009613 (Eclipse), 9811000 (Ever Given).": "Esempi: 9692545 (Andromeda), 1009613 (Eclipse), 9811000 (Ever Given).",
+    "Your fleet is saved in this browser and restored on your next visit.": "La tua flotta è salvata in questo browser e viene ripristinata alla prossima visita.",
+    "Share your whole fleet with one click using the Share fleet button — the link encodes your vessels.": "Condividi l'intera flotta con un clic usando il pulsante „Condividi flotta” — il link contiene le tue navi.",
+    "Maps & tracking": "Mappe e tracciamento",
+    "Live track shows the precise AIS position and 24 h track of the selected vessel.": "„Traccia live” mostra la posizione AIS precisa e la rotta di 24 h della nave selezionata.",
+    "Fleet view shows every tracked vessel on one map — markers point along their heading.": "„Vista flotta” mostra tutte le navi tracciate su una mappa — i markeri indicano la rotta.",
+    "Ghost track projects where each moving vessel will be in 6 / 12 / 24 h.": "„Traccia fantasma” proietta dove sarà ogni nave in movimento tra 6 / 12 / 24 ore.",
+    "Replay plays back the positions this app has recorded since you started watching.": "„Riproduzione” riproduce le posizioni registrate dall'app dall'inizio del monitoraggio.",
+    "Click a vessel on the map to open its live track.": "Clicca una nave sulla mappa per aprirne la traccia live.",
+    "Fleet management": "Gestione flotta",
+    "The fleet strip and Fleet Board show every vessel; click one to focus it.": "La striscia flotta e la „Tabella flotta” mostrano ogni nave; clicca per selezionarla.",
+    "Sort the Fleet Board by any column — speed, destination, ETA, last update.": "Ordina la tabella flotta per qualsiasi colonna — velocità, destinazione, ETA, ultimo aggiornamento.",
+    "The stats bar summarises your fleet: under way, at anchor, average speed.": "La barra statistiche riassume la flotta: in navigazione, all'ancora, velocità media.",
+    "Remove a vessel with the × button on its card.": "Rimuovi una nave con il pulsante × sulla sua scheda.",
+    "Voyage intelligence": "Intelligenza di viaggio",
+    "Arrives in shows a live countdown to the reported ETA.": "„Arrivo tra” mostra un conto alla rovescia per l'ETA dichiarato.",
+    "On course compares the vessel's heading with the bearing to its destination.": "„In rotta” confronta la rotta della nave con la direzione verso la destinazione.",
+    "The progress bar tracks the voyage between the last port (ATD) and destination (ETA).": "La barra di avanzamento traccia il viaggio tra l'ultimo porto (ATD) e la destinazione (ETA).",
+    "Voyage history lists the journey observed by this app: last port → destination changes → current destination.": "La „Cronologia viaggio” elenca il percorso osservato dall'app: ultimo porto → cambi di destinazione → destinazione attuale.",
+    "Insights & ambient": "Analisi e ambiente",
+    "Behavioral Insights summarise time at anchor vs under way, distance, speeds, arrivals and departures.": "L'analisi comportamentale riassume tempo all'ancora vs in navigazione, distanza, velocità, arrivi e partenze.",
+    "Aboard shows the local time at the vessel, plus sunrise, sunset and daylight hours at its position.": "„A bordo” mostra l'ora locale della nave, oltre ad alba, tramonto e ore di luce nella sua posizione.",
+    "Weather and sea state show air temperature, wind, waves, sea temperature and currents near the vessel.": "Meteo e stato del mare mostrano temperatura dell'aria, vento, onde, temperatura del mare e correnti vicino alla nave.",
+    "Alerts & radar": "Avvisi e radar",
+    "Enable Alerts and set a distance to get notified when two tracked vessels come close.": "Attiva gli „Avvisi” e imposta una distanza per essere avvisato quando due navi si avvicinano.",
+    "The Fleet Radar shows every vessel as a blip — bearing and distance from the selected vessel.": "Il „Radar flotta” mostra ogni nave come un blip — rilevamento e distanza dalla nave selezionata.",
+    "Discovery & settings": "Scoperta e impostazioni",
+    "Discover introduces a new set of famous superyachts every hour — or shuffle them yourself.": "„Scopri” presenta un nuovo set di famosi superyacht ogni ora — oppure mescolali tu stesso.",
+    "Switch colour themes and language from the top bar; your choices are remembered.": "Cambia temi colore e lingua dalla barra in alto; le tue scelte vengono ricordate.",
+    "Positions come from free AIS and are rounded to ~1° — use Live track for a precise position.": "Le posizioni provengono dall'AIS gratuito e sono arrotondate a ~1° — usa „Traccia live” per una posizione precisa.",
   },
 };
 
@@ -1160,6 +1226,7 @@ function applyLang() {
   renderDiscover();
   renderAlertsUI();
   renderSelected();
+  if (!$("help-overlay").classList.contains("hidden")) renderHelp();
 }
 
 /* ---------------- language switcher ---------------- */
@@ -1445,6 +1512,92 @@ function radarTick() {
     ctx.fillText(ref.name, cx + 12, cy + 5);
   }
 }
+
+/* ---------------- help & guide ---------------- */
+
+const HELP = [
+  {
+    title: "Getting started",
+    items: [
+      "Add any vessel with its 7-digit IMO number in the top bar and press + Track.",
+      "Examples: 9692545 (Andromeda), 1009613 (Eclipse), 9811000 (Ever Given).",
+      "Your fleet is saved in this browser and restored on your next visit.",
+      "Share your whole fleet with one click using the Share fleet button — the link encodes your vessels.",
+    ],
+  },
+  {
+    title: "Maps & tracking",
+    items: [
+      "Live track shows the precise AIS position and 24 h track of the selected vessel.",
+      "Fleet view shows every tracked vessel on one map — markers point along their heading.",
+      "Ghost track projects where each moving vessel will be in 6 / 12 / 24 h.",
+      "Replay plays back the positions this app has recorded since you started watching.",
+      "Click a vessel on the map to open its live track.",
+    ],
+  },
+  {
+    title: "Fleet management",
+    items: [
+      "The fleet strip and Fleet Board show every vessel; click one to focus it.",
+      "Sort the Fleet Board by any column — speed, destination, ETA, last update.",
+      "The stats bar summarises your fleet: under way, at anchor, average speed.",
+      "Remove a vessel with the × button on its card.",
+    ],
+  },
+  {
+    title: "Voyage intelligence",
+    items: [
+      "Arrives in shows a live countdown to the reported ETA.",
+      "On course compares the vessel's heading with the bearing to its destination.",
+      "The progress bar tracks the voyage between the last port (ATD) and destination (ETA).",
+      "Voyage history lists the journey observed by this app: last port → destination changes → current destination.",
+    ],
+  },
+  {
+    title: "Insights & ambient",
+    items: [
+      "Behavioral Insights summarise time at anchor vs under way, distance, speeds, arrivals and departures.",
+      "Aboard shows the local time at the vessel, plus sunrise, sunset and daylight hours at its position.",
+      "Weather and sea state show air temperature, wind, waves, sea temperature and currents near the vessel.",
+    ],
+  },
+  {
+    title: "Alerts & radar",
+    items: [
+      "Enable Alerts and set a distance to get notified when two tracked vessels come close.",
+      "The Fleet Radar shows every vessel as a blip — bearing and distance from the selected vessel.",
+    ],
+  },
+  {
+    title: "Discovery & settings",
+    items: [
+      "Discover introduces a new set of famous superyachts every hour — or shuffle them yourself.",
+      "Switch colour themes and language from the top bar; your choices are remembered.",
+      "Positions come from free AIS and are rounded to ~1° — use Live track for a precise position.",
+    ],
+  },
+];
+
+function renderHelp() {
+  const body = $("help-body");
+  if (!body) return;
+  body.innerHTML = HELP.map(
+    (sec) =>
+      '<section class="help-section"><h3>' + t(sec.title) + "</h3><ul>" +
+      sec.items.map((it) => "<li>" + t(it) + "</li>").join("") +
+      "</ul></section>"
+  ).join("");
+}
+$("help-btn").addEventListener("click", () => {
+  renderHelp();
+  $("help-overlay").classList.remove("hidden");
+});
+$("help-close").addEventListener("click", () => {
+  $("help-overlay").classList.add("hidden");
+});
+$("help-overlay").addEventListener("click", (e) => {
+  if (e.target === $("help-overlay")) $("help-overlay").classList.add("hidden");
+});
 
 /* ---------------- fetching ---------------- */
 

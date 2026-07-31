@@ -33,6 +33,7 @@
         <option value="pl">PL · Polski</option>
         <option value="it">IT · Italiano</option>
       </select>
+      <button class="help-btn" id="help-btn" data-i18n-title="Help" title="Help">❓</button>
       <form class="add-bar" id="add-form">
         <input id="imo-input" inputmode="numeric" pattern="[0-9]{7}" maxlength="7"
                data-i18n-placeholder="Add vessel by IMO… e.g. 9692545"
@@ -346,6 +347,16 @@
         <div class="rp-times"><span id="replay-t0">—</span><span id="replay-t1">—</span></div>
       </div>
       <p class="card-note" data-i18n="Playback of positions recorded by this app since it started watching the fleet.">Playback of positions recorded by this app since it started watching the fleet.</p>
+    </div>
+  </div>
+
+  <div id="help-overlay" class="overlay hidden">
+    <div class="overlay-card help-card">
+      <div class="card-head">
+        <h2 data-i18n="Help & Guide">Help &amp; Guide</h2>
+        <button class="mini-btn" id="help-close">✕</button>
+      </div>
+      <div id="help-body" class="help-body"></div>
     </div>
   </div>
 
