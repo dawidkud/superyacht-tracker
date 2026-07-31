@@ -78,11 +78,9 @@ Deployed on [Render](https://render.com) (free tier) — public at
 - Auto-deploys on every push to `main`
 - Free tier sleeps after ~15 min of inactivity and wakes on the next request
 
-For an instant temporary public link, run:
+## Screnshot
 
-```bash
-cloudflared tunnel --url http://127.0.0.1:8123
-```
+
 
 ---
 
