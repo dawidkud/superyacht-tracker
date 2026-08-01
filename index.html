@@ -13,7 +13,7 @@
   <header class="topbar">
     <div class="container topbar-inner">
       <div class="brand">
-        <span class="brand-mark">⚓</span>
+        <span class="logo-badge">⚓</span>
         <span class="brand-name">Superyacht <strong>Tracker</strong></span>
       </div>
       <nav class="topnav">
@@ -22,24 +22,26 @@
         <a href="#timeline" data-i18n="Activity">Activity</a>
         <a href="#discover" data-i18n="Discover">Discover</a>
       </nav>
-      <select class="theme-select" id="theme-select" aria-label="Colour theme" title="Colour theme">
-        <option value="midnight" data-i18n="🌙 Midnight">🌙 Midnight</option>
-        <option value="daylight" data-i18n="☀️ Daylight">☀️ Daylight</option>
-        <option value="emerald" data-i18n="🌿 Emerald">🌿 Emerald</option>
-        <option value="sunset" data-i18n="🌇 Sunset">🌇 Sunset</option>
-      </select>
-      <select class="lang-select" id="lang-select" aria-label="Language" title="Language">
-        <option value="en">EN · English</option>
-        <option value="pl">PL · Polski</option>
-        <option value="it">IT · Italiano</option>
-      </select>
-      <button class="help-btn" id="help-btn" data-i18n-title="Help" title="Help">❓</button>
-      <form class="add-bar" id="add-form">
-        <input id="imo-input" inputmode="numeric" pattern="[0-9]{7}" maxlength="7"
-               data-i18n-placeholder="Add vessel by IMO… e.g. 9692545"
-               placeholder="Add vessel by IMO… e.g. 9692545" autocomplete="off">
-        <button type="submit" id="add-btn" data-i18n="+ Track">+ Track</button>
-      </form>
+      <div class="controls">
+        <select class="theme-select" id="theme-select" aria-label="Colour theme" title="Colour theme">
+          <option value="midnight" data-i18n="🌙 Midnight">🌙 Midnight</option>
+          <option value="daylight" data-i18n="☀️ Daylight">☀️ Daylight</option>
+          <option value="emerald" data-i18n="🌿 Emerald">🌿 Emerald</option>
+          <option value="sunset" data-i18n="🌇 Sunset">🌇 Sunset</option>
+        </select>
+        <select class="lang-select" id="lang-select" aria-label="Language" title="Language">
+          <option value="en">EN · English</option>
+          <option value="pl">PL · Polski</option>
+          <option value="it">IT · Italiano</option>
+        </select>
+        <button class="help-btn" id="help-btn" data-i18n-title="Help" title="Help">❓</button>
+        <form class="add-bar" id="add-form">
+          <input id="imo-input" inputmode="numeric" pattern="[0-9]{7}" maxlength="7"
+                 data-i18n-placeholder="Add vessel by IMO… e.g. 9692545"
+                 placeholder="Add vessel by IMO… e.g. 9692545" autocomplete="off">
+          <button type="submit" id="add-btn" data-i18n="+ Track">+ Track</button>
+        </form>
+      </div>
     </div>
   </header>
 

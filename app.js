@@ -7,7 +7,7 @@
 
 const $ = (id) => document.getElementById(id);
 
-const VERSION = "1.0.0";
+const VERSION = "1.0.1";
 
 const state = {
   vessels: [], // [{ imo, ...vessel }]
@@ -1240,6 +1240,16 @@ function applyLang() {
   }
   applyLang();
 }
+
+/* ---------------- topbar scroll shadow ---------------- */
+window.addEventListener(
+  "scroll",
+  () => {
+    const tb = document.querySelector(".topbar");
+    if (tb) tb.classList.toggle("scrolled", window.scrollY > 8);
+  },
+  { passive: true }
+);
 
 /* ---------------- voyage log ---------------- */
 
