@@ -24,7 +24,8 @@ Live demo: **https://superyacht-tracker.onrender.com**
 
 ### Fleet-wide visualization
 - **Stats bar** — tracked count, under way, at anchor, average speed
-- **Fleet board** — sortable table (name, type, status, SOG, COG, destination, ETA, last update) with status dots and thumbnails; click a row to focus
+- **Fleet board** — sortable table (name, type, status, SOG, COG, destination, ETA, last update) with status dots, thumbnails and **speed sparklines** (Trend column); click a row to focus
+- **Fleet comparison** — pick two vessels and compare 15 specs & live stats side by side
 - **Activity timeline** — records nav-status, speed and destination changes as the app watches each vessel
 
 ### Unique features
