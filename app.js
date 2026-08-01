@@ -7,7 +7,7 @@
 
 const $ = (id) => document.getElementById(id);
 
-const VERSION = "1.0.1";
+const VERSION = "1.0.2";
 
 const state = {
   vessels: [], // [{ imo, ...vessel }]

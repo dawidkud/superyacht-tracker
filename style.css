@@ -127,7 +127,10 @@ code { font-family: var(--font-mono); font-size: 0.92em; background: var(--card-
   transition: box-shadow var(--transition), background var(--transition);
 }
 .topbar.scrolled { box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22); }
-.topbar-inner { display: flex; align-items: center; gap: 14px; height: 64px; flex-wrap: wrap; }
+.topbar-inner {
+  display: flex; align-items: center; gap: 10px 16px; flex-wrap: wrap;
+  min-height: 64px; padding: 10px 22px;
+}
 
 .brand { display: flex; align-items: center; gap: 11px; margin-right: auto; }
 .logo-badge {
@@ -611,7 +614,6 @@ main { padding: 12px 22px 46px; }
 }
 @media (max-width: 760px) {
   .topnav { display: none; }
-  .topbar-inner { height: auto; padding: 10px 0; }
 }
 @media (max-width: 560px) {
   .add-bar input { width: 150px; }
