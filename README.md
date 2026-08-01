@@ -128,4 +128,4 @@ MIT
 
 ## Screenshot
 
-![Superyacht Tracker — app overview](superyacht-tracker-01.png)
+![Superyacht Tracker — app overview](superyacht-tracker-02.png)
