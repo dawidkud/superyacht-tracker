@@ -7,7 +7,7 @@
 
 const $ = (id) => document.getElementById(id);
 
-const VERSION = "1.0.3";
+const VERSION = "1.0.4";
 
 const state = {
   vessels: [], // [{ imo, ...vessel }]
@@ -1317,7 +1317,7 @@ function photoFallback() {
     encodeURIComponent(
       '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="520">' +
         '<rect width="100%" height="100%" fill="#131e31"/>' +
-        '<text x="50%" y="50%" font-size="130" text-anchor="middle" dominant-baseline="middle">⚓</text>' +
+        '<text x="50%" y="50%" font-size="130" text-anchor="middle" dominant-baseline="middle">⛵</text>' +
         '<text x="50%" y="62%" font-size="26" fill="#8fa2bd" text-anchor="middle">' + t("No photo available") + "</text>" +
         "</svg>"
     )
@@ -1392,7 +1392,7 @@ function renderVoyageLog(v) {
   if (v.lastPort) {
     html += vlLeg(
       relativeTime(parseMdhms(v.lastPortAtd)),
-      "⚓ " + v.lastPort + (v.lastPortAtd ? ' <span class="dim">(' + t("ATD") + " " + v.lastPortAtd + ")</span>" : "")
+      "⛵ " + v.lastPort + (v.lastPortAtd ? ' <span class="dim">(' + t("ATD") + " " + v.lastPortAtd + ")</span>" : "")
     );
   }
   evs.forEach((e) => {

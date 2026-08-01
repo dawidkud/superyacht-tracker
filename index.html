@@ -6,14 +6,22 @@
   <title id="page-title">Superyacht Tracker</title>
   <meta name="description" content="Track superyachts and vessels by IMO number with live AIS position, details and weather.">
   <link rel="stylesheet" href="style.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚓</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%232fa8ff'/><stop offset='1' stop-color='%2319d3a5'/></linearGradient></defs><path d='M12 2.5V14' stroke='url(%23g)' stroke-width='1.6' fill='none' stroke-linecap='round'/><path d='M12 4 L5 14 H12 Z' fill='url(%23g)'/><path d='M12 5 L19 14 H12 Z' fill='url(%23g)' opacity='.85'/><path d='M3 15.5 H21 L19 19.5 H5 Z' fill='url(%23g)'/><path d='M6 21.5 H18' stroke='url(%23g)' stroke-width='1.4' stroke-linecap='round' opacity='.6'/></svg>">
 </head>
 <body>
 
   <header class="topbar">
     <div class="container topbar-inner">
       <div class="brand">
-        <span class="logo-badge">⚓</span>
+        <span class="logo-badge">
+          <svg viewBox="0 0 24 24" width="21" height="21" fill="none" aria-hidden="true">
+            <path d="M12 2.5V14" stroke="#06121f" stroke-width="1.7" stroke-linecap="round"/>
+            <path d="M12 4 L5 14 H12 Z" fill="#06121f"/>
+            <path d="M12 5 L19 14 H12 Z" fill="#06121f" opacity=".85"/>
+            <path d="M3 15.5 H21 L19 19.5 H5 Z" fill="#06121f"/>
+            <path d="M6 21.5 H18" stroke="#06121f" stroke-width="1.4" stroke-linecap="round" opacity=".6"/>
+          </svg>
+        </span>
         <span class="brand-name">Superyacht <strong>Tracker</strong></span>
       </div>
       <nav class="topnav">
@@ -68,7 +76,7 @@
     <div class="container">
       <div class="hero-grid">
         <div class="hero-photo">
-          <img src="data:image/svg+xml;utf8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='800'%20height='520'%3E%3Crect%20width='100%25'%20height='100%25'%20fill='%23131e31'/%3E%3Ctext%20x='50%25'%20y='50%25'%20font-size='130'%20text-anchor='middle'%20dominant-baseline='middle'%3E%E2%9A%93%3C/text%3E%3C/svg%3E" alt="" id="vessel-photo">
+          <img src="data:image/svg+xml;utf8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='800'%20height='520'%3E%3Crect%20width='100%25'%20height='100%25'%20fill='%23131e31'/%3E%3Ctext%20x='50%25'%20y='50%25'%20font-size='130'%20text-anchor='middle'%20dominant-baseline='middle'%3E%E2%9B%B5%3C/text%3E%3C/svg%3E" alt="" id="vessel-photo">
           <span class="status-pill" id="nav-status-pill">—</span>
         </div>
         <div class="hero-info">
