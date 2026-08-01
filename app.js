@@ -7,6 +7,8 @@
 
 const $ = (id) => document.getElementById(id);
 
+const VERSION = "1.0.0";
+
 const state = {
   vessels: [], // [{ imo, ...vessel }]
   selectedImo: null,
@@ -2114,6 +2116,7 @@ function updateLastReport() {
 }
 
 async function init() {
+  fillText("app-version", "v" + VERSION);
   let imos = loadIMOs();
   const fleetParam = new URLSearchParams(location.search).get("fleet");
   if (fleetParam) {

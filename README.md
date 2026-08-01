@@ -4,8 +4,6 @@ Live AIS vessel tracking by **IMO number** — add any ship, watch your whole fl
 
 Live demo: **https://superyacht-tracker.onrender.com**
 
-![Superyacht Tracker — app overview](superyacht-tracker-01.png)
-
 ---
 
 ## Features
@@ -95,6 +93,24 @@ cloudflared tunnel --url http://127.0.0.1:8123
 
 ---
 
+## Versioning
+
+The project follows **Semantic Versioning** with git tags and [GitHub Releases](https://github.com/dawidkud/superyacht-tracker/releases).
+
+- Each stable milestone is tagged `vX.Y.Z` (`v1.0.0`, `v1.1.0`, …) and published as a Release with a changelog.
+- The current release is shown in the app footer.
+- **Rolling back:**
+  1. **Fast:** in Render → your service → *Manual Deploy → Deploy a specific commit* and paste the tagged commit's hash.
+  2. **Permanent:** `git revert` the unwanted commits on `main` and push (keeps history linear and deployable), or point a temporary branch at an older tag.
+
+```bash
+git tag -a v1.1.0 -m "v1.1.0 — release notes"
+git push origin main --tags
+gh release create v1.1.0 --title "v1.1.0" --notes "…"
+```
+
+---
+
 ## Notes
 
 - Free AIS feeds report positions rounded to ~1°, so fleet-map markers are approximate; use *Live track* for the precise position.
@@ -107,3 +123,9 @@ cloudflared tunnel --url http://127.0.0.1:8123
 ## License
 
 MIT
+
+---
+
+## Screenshot
+
+![Superyacht Tracker — app overview](superyacht-tracker-01.png)
