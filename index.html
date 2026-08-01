@@ -160,7 +160,10 @@
     <section id="board" class="card">
       <div class="card-head">
         <h2 data-i18n="Fleet Board">Fleet Board</h2>
-        <span class="dim" id="board-count"></span>
+        <div class="head-right">
+          <span class="dim" id="board-count"></span>
+          <button class="mini-btn" id="compare-btn" data-i18n="Compare">Compare</button>
+        </div>
       </div>
       <div class="table-wrap">
         <table class="board">
@@ -170,6 +173,7 @@
               <th data-sort="type" data-i18n="Type">Type</th>
               <th data-sort="status" data-i18n="Status">Status</th>
               <th data-sort="sog">SOG</th>
+              <th data-i18n="Trend">Trend</th>
               <th data-sort="cog">COG</th>
               <th data-sort="destination" data-i18n="Destination">Destination</th>
               <th data-sort="eta">ETA</th>
@@ -359,6 +363,16 @@
         <button class="mini-btn" id="help-close">✕</button>
       </div>
       <div id="help-body" class="help-body"></div>
+    </div>
+  </div>
+
+  <div id="compare-overlay" class="overlay hidden">
+    <div class="overlay-card compare-card">
+      <div class="card-head">
+        <h2 data-i18n="Fleet comparison">Fleet comparison</h2>
+        <button class="mini-btn" id="compare-close">✕</button>
+      </div>
+      <div id="compare-body" class="compare-body"></div>
     </div>
   </div>
 

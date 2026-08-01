@@ -487,6 +487,35 @@ main { padding: 12px 22px 46px; }
 .ins-cell span { display: block; font-size: 10.5px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.6px; font-weight: 600; }
 .ins-cell b { font-size: 15px; color: var(--text); font-variant-numeric: tabular-nums; }
 
+/* ---------- Sparklines ---------- */
+.spark { display: block; }
+.trend { width: 100px; }
+.trend .spark { width: 96px; height: 24px; }
+.ins-speed { align-items: flex-start; }
+.ins-speed .ib-label { padding-top: 5px; }
+.ins-speed-svg { flex: 1; min-width: 0; }
+.ins-speed-svg .spark { width: 100%; height: 34px; }
+
+/* ---------- Fleet comparison ---------- */
+.cmp-pick {
+  display: inline-grid; place-items: center; width: 19px; height: 19px; border-radius: 50%;
+  border: 2px solid var(--line-strong); color: var(--dim); font-size: 11px; font-weight: 800; flex: 0 0 auto;
+  transition: background var(--transition), border-color var(--transition), color var(--transition);
+}
+.cmp-pick.on {
+  background: var(--accent-2); border-color: var(--accent-2); color: #06121f;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent-2) 55%, transparent);
+}
+.board tbody tr.compare-sel {
+  background: color-mix(in srgb, var(--accent-2) 10%, transparent);
+  box-shadow: inset 3px 0 0 var(--accent-2);
+}
+.cmp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.cmp-col { background: var(--card-2); border: 1px solid var(--line); border-radius: 15px; padding: 16px; }
+.cmp-name { font-size: 16px; font-weight: 800; color: var(--text); margin-bottom: 10px; display: flex; align-items: baseline; gap: 8px; }
+.cmp-name .cmp-imo { font-size: 11px; color: var(--dim); font-weight: 500; }
+.compare-card { max-width: 860px; }
+
 /* =============================================================
    Aboard
    ============================================================= */
@@ -614,6 +643,9 @@ main { padding: 12px 22px 46px; }
 }
 @media (max-width: 760px) {
   .topnav { display: none; }
+}
+@media (max-width: 700px) {
+  .cmp-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) {
   .add-bar input { width: 150px; }

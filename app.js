@@ -7,7 +7,7 @@
 
 const $ = (id) => document.getElementById(id);
 
-const VERSION = "1.0.2";
+const VERSION = "1.0.3";
 
 const state = {
   vessels: [], // [{ imo, ...vessel }]
@@ -20,6 +20,8 @@ const state = {
   ghostOn: localStorage.getItem("tracker_ghost") === "1",
   settings: loadSettings(),
   proxAlerted: {},
+  compareMode: false,
+  compareSel: [], // max 2 imos
 };
 
 /* ---------------- theme switcher ---------------- */
@@ -339,6 +341,110 @@ function renderStats() {
     .join("");
 }
 
+/* ---------------- sparklines & fleet comparison ---------------- */
+
+function sparkline(hist, w, h, color, sw) {
+  if (!hist || hist.length < 2) return "";
+  const vals = hist.map((s) => (s.sog != null ? s.sog : 0));
+  const max = Math.max(10, ...vals);
+  const step = w / (vals.length - 1);
+  const pts = vals
+    .map((v, i) => (i * step).toFixed(1) + "," + (h - ((v / max) * (h - 6) + 3)).toFixed(1))
+    .join(" ");
+  return (
+    '<svg class="spark" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + " " + h +
+    '" preserveAspectRatio="none"><polyline fill="none" style="stroke:' + color + '" stroke-width="' +
+    (sw || 1.6) + '" stroke-linejoin="round" stroke-linecap="round" points="' + pts +
+    '"/></svg>'
+  );
+}
+
+function setCompareMode(on) {
+  state.compareMode = !!on;
+  state.compareSel = [];
+  const btn = $("compare-btn");
+  if (btn) btn.classList.toggle("on", state.compareMode);
+  renderBoard();
+}
+
+function toggleCompare(imo) {
+  const i = state.compareSel.indexOf(imo);
+  if (i >= 0) {
+    state.compareSel.splice(i, 1);
+  } else if (state.compareSel.length < 2) {
+    state.compareSel.push(imo);
+  } else {
+    flash(t("Select two vessels to compare"));
+  }
+  renderBoard();
+  if (state.compareSel.length === 2) openCompare();
+}
+
+function openCompare() {
+  const [imoA, imoB] = state.compareSel;
+  const a = state.vessels.find((v) => v.imo === imoA);
+  const b = state.vessels.find((v) => v.imo === imoB);
+  if (!a || !b) return;
+  const rows = [
+    [t("Ship type"), "type", "type"],
+    [t("Flag state"), "flag", "flag"],
+    [t("Length overall"), "loa", "loa"],
+    [t("Beam"), "beam", "beam"],
+    [t("Gross tonnage"), "gt", "gt"],
+    [t("Deadweight"), "dwt", "dwt"],
+    [t("Year of build"), "built", "built"],
+    [t("Navigation status"), "nav", "nav"],
+    [t("Speed over ground"), "sog", "sog"],
+    [t("Course over ground"), "cog", "cog"],
+    [t("Destination"), "dest", "dest"],
+    [t("ETA"), "eta", "eta"],
+    [t("Region"), "region", "region"],
+    [t("Last port"), "port", "port"],
+    [t("Approx. position"), "pos", "pos"],
+  ];
+  const cell = (v, key) => {
+    if (key === "type") return escapeHtml(v.type || t("Vessel"));
+    if (key === "flag") return escapeHtml(v.flag || "—");
+    if (key === "loa") return (spec(v, "Length Overall") || "—") + " m";
+    if (key === "beam") return (spec(v, "Beam") || "—") + " m";
+    if (key === "gt") return fmtNum(spec(v, "Gross Tonnage") || "—");
+    if (key === "dwt") return (spec(v, "Deadweight") || "—") + " t";
+    if (key === "built") return spec(v, "Year of Build") || "—";
+    if (key === "nav") return trStatus(v.navStatus) || "—";
+    if (key === "sog") return v.position && v.position.sog != null ? v.position.sog.toFixed(1) + " kn" : "—";
+    if (key === "cog") return v.position && v.position.cog != null ? Math.round(v.position.cog) + "°" : "—";
+    if (key === "dest") return escapeHtml(v.destination || "—");
+    if (key === "eta") return escapeHtml(v.eta || "—");
+    if (key === "region") return escapeHtml(v.region || "—");
+    if (key === "port") return escapeHtml((v.lastPort || "—") + (v.lastPortAtd ? " · ATD " + v.lastPortAtd : ""));
+    if (key === "pos") return fmtLatLon(v);
+    return "—";
+  };
+  const col = (v) =>
+    '<div class="cmp-col">' +
+    '<div class="cmp-name">' + escapeHtml(v.name) + ' <span class="cmp-imo">IMO ' + v.imo + "</span></div>" +
+    '<table class="kv">' +
+    rows
+      .map((r) => "<tr><td>" + r[0] + "</td><td>" + cell(v, r[1]) + "</td></tr>")
+      .join("") +
+    "</table></div>";
+  $("compare-body").innerHTML = '<div class="cmp-grid">' + col(a) + col(b) + "</div>";
+  $("compare-overlay").classList.remove("hidden");
+}
+
+function closeCompare() {
+  $("compare-overlay").classList.add("hidden");
+  setCompareMode(false);
+}
+$("compare-btn").addEventListener("click", () => {
+  if (state.compareMode) closeCompare();
+  else setCompareMode(true);
+});
+$("compare-close").addEventListener("click", closeCompare);
+$("compare-overlay").addEventListener("click", (e) => {
+  if (e.target === $("compare-overlay")) closeCompare();
+});
+
 /* ---------------- fleet board table ---------------- */
 
 const SORT_KEYS = {
@@ -374,17 +480,23 @@ function renderBoard() {
 
   tbody.innerHTML = list
     .map((v) => {
-      const active = v.imo === state.selectedImo ? " active" : "";
       const cat = statusCategory(v.navStatus);
+      const selIndex = state.compareMode ? state.compareSel.indexOf(v.imo) + 1 : 0;
+      const rowCls = state.compareMode ? (selIndex ? "compare-sel" : "") : v.imo === state.selectedImo ? " active" : "";
       const sog = v.position && v.position.sog != null ? v.position.sog.toFixed(1) : "—";
       const cog = v.position && v.position.cog != null ? Math.round(v.position.cog) : "—";
+      const pick = state.compareMode
+        ? '<span class="cmp-pick' + (selIndex ? " on" : "") + '">' + (selIndex ? selIndex : "○") + "</span>"
+        : "";
       return (
-        '<tr class="' + active + '" data-imo="' + v.imo + '">' +
-        '<td><div class="vcell"><img class="thumb" src="' + (v.photo || photoFallback()) + '" alt="">' +
+        '<tr class="' + rowCls + '" data-imo="' + v.imo + '">' +
+        '<td><div class="vcell">' + pick +
+        '<img class="thumb" src="' + (v.photo || photoFallback()) + '" alt="">' +
         '<div><span class="vname">' + escapeHtml(v.name) + '</span><span class="vimo">IMO ' + v.imo + "</span></div></div></td>" +
         "<td>" + escapeHtml(v.type || t("Vessel")) + "</td>" +
         '<td><span class="status-cell"><span class="dot ' + DOT_CLASS[cat] + '"></span>' + escapeHtml(trStatus(v.navStatus)) + "</span></td>" +
         '<td class="tnum">' + sog + "</td>" +
+        '<td class="trend">' + sparkline(loadHist(v.imo), 96, 24, DOT_COLOR[cat]) + "</td>" +
         '<td class="tnum">' + cog + "°</td>" +
         "<td>" + escapeHtml(v.destination || "—") + "</td>" +
         "<td>" + escapeHtml(v.eta || "—") + "</td>" +
@@ -398,7 +510,10 @@ function renderBoard() {
 }
 $("board-body").addEventListener("click", (e) => {
   const tr = e.target.closest("tr[data-imo]");
-  if (tr) selectVessel(tr.getAttribute("data-imo"));
+  if (!tr) return;
+  const imo = tr.getAttribute("data-imo");
+  if (state.compareMode) toggleCompare(imo);
+  else selectVessel(imo);
 });
 document.querySelectorAll(".board th[data-sort]").forEach((th) => {
   th.addEventListener("click", () => {
@@ -559,6 +674,7 @@ function renderInsights(v) {
   body.innerHTML =
     '<div class="ins-bar"><span class="ib-label">' + t("At anchor") + '</span><div class="ib-track"><div class="ib-fill amber" style="width:' + ap.toFixed(0) + '%"></div></div><b>' + ap.toFixed(0) + "%</b></div>" +
     '<div class="ins-bar"><span class="ib-label">' + t("Under way") + '</span><div class="ib-track"><div class="ib-fill green" style="width:' + up.toFixed(0) + '%"></div></div><b>' + up.toFixed(0) + "%</b></div>" +
+    '<div class="ins-bar ins-speed"><span class="ib-label">' + t("Speed history") + '</span><div class="ins-speed-svg">' + sparkline(loadHist(v.imo), 240, 34, "var(--accent-2)", 2) + "</div></div>" +
     '<div class="ins-grid">' +
     insCell(t("Distance covered"), Math.round(st.distanceNm).toLocaleString() + " nm") +
     insCell(t("Avg speed"), (st.sogN ? (st.sogSum / st.sogN).toFixed(1) : "—") + " kn") +
@@ -1007,6 +1123,8 @@ const I18N = {
     "Discover introduces a new set of famous superyachts every hour — or shuffle them yourself.": "„Odkryj” co godzinę pokazuje nowy zestaw słynnych superjachtów — możesz też je losować.",
     "Switch colour themes and language from the top bar; your choices are remembered.": "Zmieniaj motywy kolorystyczne i język w górnym pasku — wybór jest zapamiętywany.",
     "Positions come from free AIS and are rounded to ~1° — use Live track for a precise position.": "Pozycje pochodzą z darmowego AIS i są zaokrąglane do ~1° — dla dokładnej pozycji użyj „Śledzenia na żywo”.",
+    "Trend": "Trend", "Compare": "Porównaj", "Fleet comparison": "Porównanie floty",
+    "Speed history": "Historia prędkości", "Select two vessels to compare": "Wybierz dwie jednostki do porównania",
   },
   it: {
     "Map": "Mappa", "Fleet": "Flotta", "Activity": "Attività", "Discover": "Scopri",
@@ -1133,6 +1251,8 @@ const I18N = {
     "Discover introduces a new set of famous superyachts every hour — or shuffle them yourself.": "„Scopri” presenta un nuovo set di famosi superyacht ogni ora — oppure mescolali tu stesso.",
     "Switch colour themes and language from the top bar; your choices are remembered.": "Cambia temi colore e lingua dalla barra in alto; le tue scelte vengono ricordate.",
     "Positions come from free AIS and are rounded to ~1° — use Live track for a precise position.": "Le posizioni provengono dall'AIS gratuito e sono arrotondate a ~1° — usa „Traccia live” per una posizione precisa.",
+    "Trend": "Andamento", "Compare": "Confronta", "Fleet comparison": "Confronto flotta",
+    "Speed history": "Cronologia velocità", "Select two vessels to compare": "Seleziona due navi da confrontare",
   },
 };
 
