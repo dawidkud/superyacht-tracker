@@ -22,6 +22,9 @@ Demo live: **https://superyacht-tracker.onrender.com**
   - markeri orientati secondo la **rotta** e colorati in base allo stato
   - cerchi che mostrano l'incertezza di posizione (~1°) del feed AIS gratuito
   - clustering dei markeri per flotte numerose
+  - passaggio tra i livelli base **strade** e **satellite** (Esri), oppure sovrapposizione di **carte nautiche** (OpenSeaMap) tramite il controllo dei livelli sulla mappa
+  - **Traccia velocità** — colora il percorso registrato di ogni nave in base alla velocità (verde = lenta → rossa = veloce)
+  - **Strumento Misura** — clicca per misurare distanze ortodromiche in miglia nautiche
 - **Traccia fantasma** — attiva la proiezione della posizione futura di ogni nave in movimento (6/12/24 h) da rotta e velocità, disegnata come linea tratteggiata con la posizione prevista dopo 24 h
 
 ### Visualizzazione flotta
@@ -38,6 +41,7 @@ Demo live: **https://superyacht-tracker.onrender.com**
 - **Cronologia viaggio** — diario di viaggio per nave (ultimo porto → cambi di destinazione osservati → destinazione attuale)
 - **Avvisi di prossimità** — notifiche del browser ed eventi nella cronologia quando due navi tracciate si avvicinano entro una distanza impostata (5/10/25/50 nm), con chip degli incontri in corso
 - **Ambiente a bordo** — ora locale della nave, alba/tramonto nella sua posizione (calcolo NOAA) e conto alla rovescia „tramonto tra …"
+- **Porti e marine vicine** — i porti principali per superyacht più vicini alla nave selezionata, con distanza, rilevamento ed ETA alla velocità attuale, oltre alle navi tracciate vicino al porto più vicino
 - **Meteo in posizione** — temperatura, vento e raffiche live via Open-Meteo
 
 ### Condivisione e centro di comando
@@ -57,7 +61,7 @@ Quattro temi colore commutabili (Midnight, Daylight, Emerald, Sunset) dal menu n
 | Backend | Node.js — zero dipendenze npm (`http`/`https` integrati) |
 | Dati navi | Proxy locale che analizza le pagine VesselFinder → JSON pulito |
 | Foto | Scaricate e memorizzate in locale per ogni nave |
-| Mappa flotta | Leaflet + tile OpenStreetMap + clustering markeri |
+| Mappa flotta | Leaflet + tile OpenStreetMap (strade) + Esri World Imagery (satellite) + OpenSeaMap (carte nautiche) + clustering markeri |
 | Traccia live | Embed AIS VesselFinder |
 | Meteo | Open-Meteo |
 | Geocodifica | OpenStreetMap Nominatim |

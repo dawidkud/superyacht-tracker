@@ -22,6 +22,9 @@ Live demo: **https://superyacht-tracker.onrender.com**
   - boat markers rotated to **heading** and colour-coded by status
   - circles showing the ~1° position uncertainty of the free AIS feed
   - marker clustering for large fleets
+  - switch between **street** and **satellite** (Esri) base layers, or overlay **nautical charts** (OpenSeaMap), with the layer control on the map
+  - **Speed track** — colour-codes each vessel's recorded trail by speed (green = slow → red = fast)
+  - **Measure tool** — click-to-measure great-circle distances in nautical miles
 - **Ghost track** — toggle to project each moving vessel's future position (6/12/24 h) from its course and speed, drawn as a dashed path with the projected 24 h position marked
 
 ### Fleet-wide visualization
@@ -38,6 +41,7 @@ Live demo: **https://superyacht-tracker.onrender.com**
 - **Voyage history** — per-vessel journey log (last port → observed destination changes → current destination)
 - **Proximity alerts** — browser notifications and timeline events when two tracked vessels come within a set distance (5/10/25/50 nm), with live encounter chips
 - **Aboard ambient** — live local time at the vessel, sunrise/sunset at its position (NOAA solar calc), and a "sunset in …" countdown
+- **Nearby Ports & Marinas** — the closest major superyacht ports to the selected vessel, with distance, bearing and ETA at current speed, plus tracked vessels near the nearest port
 - **Weather at position** — live temperature, wind and gusts via Open-Meteo
 
 ### Sharing & command center
@@ -57,7 +61,7 @@ Four switchable colour themes (Midnight, Daylight, Emerald, Sunset) via the top-
 | Backend | Node.js — zero npm dependencies (built-in `http`/`https`) |
 | Vessel data | Local proxy parses VesselFinder's vessel pages → clean JSON |
 | Photos | Downloaded and cached locally per vessel |
-| Fleet map | Leaflet + OpenStreetMap tiles + marker clustering |
+| Fleet map | Leaflet + OpenStreetMap tiles (streets) + Esri World Imagery (satellite) + OpenSeaMap (charts overlay) + marker clustering |
 | Live track | VesselFinder AIS embed |
 | Weather | Open-Meteo |
 | Geocoding | OpenStreetMap Nominatim |

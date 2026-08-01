@@ -6,7 +6,7 @@ Web app that tracks vessels (starting with superyacht ANDROMEDA, IMO 9692545) by
 **Run:** `cd ~/superyacht-tracker && node server.js` → `http://127.0.0.1:8123` (override port with `PORT`)
 **Live:** https://superyacht-tracker.onrender.com
 **Repo:** https://github.com/dawidkud/superyacht-tracker
-**Current version:** v1.0.4 (SemVer tags + GitHub Releases; rollback via Render → Manual Deploy → specific commit/tag)
+**Current version:** v1.0.5 (SemVer tags + GitHub Releases; rollback via Render → Manual Deploy → specific commit/tag)
 
 ---
 
@@ -22,6 +22,9 @@ Web app that tracks vessels (starting with superyacht ANDROMEDA, IMO 9692545) by
 **Maps & tracking**
 - *Live track* — precise AIS position + 24 h track of the selected vessel (VesselFinder embed, reloads per vessel)
 - *Fleet view* — Leaflet overview: heading-rotated boat markers, status-coloured, ~1° uncertainty circles, marker clustering
+- *Base layers* — switch between **streets** and **satellite** (Esri) imagery, plus a **nautical-chart overlay** (OpenSeaMap), via the layer control on the fleet map
+- *Speed track* — colour-codes each vessel's recorded trail by speed (green = slow → red = fast), with a legend; toggle on the fleet map
+- *Measure tool* — click-to-measure great-circle distances on the fleet map (points, dashed line, running total in nm)
 - *Ghost track* — projects each moving vessel's future position (6/12/24 h) as a dashed path on the fleet map
 - *Track replay* — animated playback of recorded fleet positions (play/pause, 1×/3×/8× speed)
 
@@ -41,6 +44,7 @@ Web app that tracks vessels (starting with superyacht ANDROMEDA, IMO 9692545) by
 - Behavioral Insights: % time at anchor/under way, distance covered, avg/top speed, longest anchor, arrivals/departures + **speed-history sparkline** — from this app's own observation history
 - Aboard ambient: live local time at the vessel (from longitude) + NOAA sunrise/sunset at its position with "sunset in …" countdown
 - Weather & sea state: air temp, wind, gusts, waves (height/period), sea temp, ocean current (Open-Meteo + Marine API)
+- Nearby Ports & Marinas: the 3 nearest major ports (curated ~100-entry list) with distance, bearing and ETA at current speed, plus tracked vessels within 50 nm of the nearest port
 
 **Alerts**
 - Proximity alerts: browser notifications + timeline events when two tracked vessels come within X nm (5/10/25/50), with current-encounter chips
@@ -62,7 +66,7 @@ Web app that tracks vessels (starting with superyacht ANDROMEDA, IMO 9692545) by
 | **Vessel data** | Proxy parses VesselFinder's vessel-details page → clean JSON at `/api/vessel?imo=NNNNNNN` |
 | **Photos** | Downloaded + cached to `photos/<imo>.jpg`, served locally |
 | **Live map** | VesselFinder `aismap` iframe (IMO/MMSI + track params) |
-| **Fleet map** | Leaflet 1.9.4 + markercluster from CDN + OpenStreetMap tiles |
+| **Fleet map** | Leaflet 1.9.4 + markercluster from CDN + OpenStreetMap tiles (streets) · Esri World Imagery (satellite) · OpenSeaMap (charts overlay) |
 | **Weather / marine** | Open-Meteo forecast + marine API (wind in knots, current m/s → kn) |
 | **Geocoding** | OpenStreetMap Nominatim (cached in localStorage) |
 | **Caching** | In-memory 10-min API cache + `localStorage` data cache + photo disk cache + recorded history/stats |

@@ -7,7 +7,7 @@
 
 const $ = (id) => document.getElementById(id);
 
-const VERSION = "1.0.4";
+const VERSION = "1.0.5";
 
 const state = {
   vessels: [], // [{ imo, ...vessel }]
@@ -18,10 +18,12 @@ const state = {
   sortKey: null,
   sortDir: 1,
   ghostOn: localStorage.getItem("tracker_ghost") === "1",
+  speedTrackOn: localStorage.getItem("tracker_speedtrack") === "1",
   settings: loadSettings(),
   proxAlerted: {},
   compareMode: false,
   compareSel: [], // max 2 imos
+  measure: { active: false, points: [], line: null, markers: [], total: 0 },
 };
 
 /* ---------------- theme switcher ---------------- */
@@ -914,6 +916,344 @@ document.addEventListener("click", (e) => {
   if (btn) addVessel(btn.getAttribute("data-imo"));
 });
 
+/* ---------------- speed-coloured track ---------------- */
+
+function speedTrackColor(sog, max) {
+  const t = Math.min(1, Math.max(0, (sog || 0) / Math.max(8, max)));
+  const hue = 140 - 140 * t; /* 140 green → 0 red */
+  return "hsl(" + hue.toFixed(0) + ", 82%, 52%)";
+}
+
+function renderSpeedTrackToggle() {
+  const el = $("speed-track-toggle");
+  if (el) el.checked = state.speedTrackOn;
+}
+
+function drawSpeedTracks(add) {
+  if (!state.speedTrackOn) return;
+  let max = 0;
+  const hist = state.vessels.map((v) => ({ v, h: loadHist(v.imo).slice(-80) }));
+  for (const d of hist) {
+    for (const s of d.h) {
+      if (s.sog != null && s.sog > max) max = s.sog;
+    }
+  }
+  for (const { v, h } of hist) {
+    for (let i = 1; i < h.length; i++) {
+      const a = h[i - 1];
+      const b = h[i];
+      if (a.lat == null || a.lon == null || b.lat == null || b.lon == null) continue;
+      add(
+        L.polyline(
+          [
+            [a.lat, a.lon],
+            [b.lat, b.lon],
+          ],
+          {
+            color: speedTrackColor(b.sog, max),
+            weight: 3,
+            opacity: 0.9,
+            interactive: false,
+          }
+        ).bindPopup(
+          "<strong>" + escapeHtml(v.name) + "</strong><br>" +
+            (a.sog != null ? a.sog.toFixed(1) + " kn" : "—") + " → " +
+            (b.sog != null ? b.sog.toFixed(1) + " kn" : "—")
+        )
+      );
+    }
+  }
+  const legend = $("speed-legend");
+  if (legend) {
+    legend.classList.toggle("hidden", !state.speedTrackOn || !hist.some((d) => d.h.length >= 2));
+    legend.innerHTML =
+      '<span class="sl-label">' + t("slow") + "</span>" +
+      '<span class="sl-bar"></span>' +
+      '<span class="sl-label">' + t("fast") + " · " + (max ? max.toFixed(0) + " kn" : "") + "</span>";
+  }
+}
+
+$("speed-track-toggle").addEventListener("change", (e) => {
+  state.speedTrackOn = e.target.checked;
+  localStorage.setItem("tracker_speedtrack", state.speedTrackOn ? "1" : "0");
+  renderFleetMap();
+});
+
+/* ---------------- measure distance tool ---------------- */
+
+function toggleMeasure() {
+  state.measure.active = !state.measure.active;
+  renderMeasureButton();
+  if (state.fleetMap) {
+    if (state.measure.active) state.fleetMap.doubleClickZoom.disable();
+    else state.fleetMap.doubleClickZoom.enable();
+  }
+  updateMeasureInfo();
+}
+
+function renderMeasureButton() {
+  const btn = $("measure-btn");
+  if (btn) {
+    btn.classList.toggle("on", state.measure.active);
+    btn.textContent = state.measure.active ? t("📏 Measuring…") : t("📏 Measure");
+  }
+}
+
+function clearMeasure() {
+  state.measure.points = [];
+  state.measure.total = 0;
+  if (state.measure.line) {
+    state.fleetMap.removeLayer(state.measure.line);
+    state.measure.line = null;
+  }
+  if (state.measure.markers) {
+    state.measure.markers.forEach((m) => state.fleetMap.removeLayer(m));
+    state.measure.markers = [];
+  }
+  updateMeasureInfo();
+}
+
+function updateMeasureInfo() {
+  const info = $("measure-info");
+  if (!info) return;
+  if (state.measure.active) {
+    info.textContent =
+      t("Click the map to add points — double-click to finish.") +
+      (state.measure.points.length >= 2
+        ? " · " + tF("Total {d} nm", { d: state.measure.total.toFixed(1) }) + " · " + state.measure.points.length + " pts"
+        : "");
+  } else if (state.measure.points.length >= 2) {
+    info.textContent = tF("Total {d} nm", { d: state.measure.total.toFixed(1) }) + " · " + state.measure.points.length + " pts";
+  } else {
+    info.textContent = "";
+  }
+}
+
+function addMeasurePoint(lat, lon) {
+  state.measure.points.push([lat, lon]);
+  if (state.measure.points.length >= 2) {
+    const a = state.measure.points[state.measure.points.length - 2];
+    const b = state.measure.points[state.measure.points.length - 1];
+    state.measure.total += haversine(a[0], a[1], b[0], b[1]);
+  }
+  drawMeasure();
+  updateMeasureInfo();
+}
+
+function drawMeasure() {
+  if (!state.fleetMap) return;
+  if (state.measure.line) {
+    state.fleetMap.removeLayer(state.measure.line);
+    state.measure.line = null;
+  }
+  if (state.measure.markers) {
+    state.measure.markers.forEach((m) => state.fleetMap.removeLayer(m));
+    state.measure.markers = [];
+  }
+  if (!state.measure.points.length) return;
+  const style = (c) => ({
+    radius: 4,
+    color: "#ffffff",
+    weight: 1.5,
+    fillColor: c,
+    fillOpacity: 1,
+    interactive: false,
+  });
+  state.measure.points.forEach((p, i) => {
+    const first = i === 0;
+    const last = i === state.measure.points.length - 1;
+    const m = L.circleMarker(p, style(first || last ? "#f0b429" : "#2fa8ff"));
+    state.fleetMap.addLayer(m);
+    state.measure.markers.push(m);
+  });
+  if (state.measure.points.length >= 2) {
+    state.measure.line = L.polyline(state.measure.points, {
+      color: "#f0b429",
+      weight: 2,
+      dashArray: "4 5",
+      opacity: 0.95,
+      interactive: false,
+    });
+    state.measure.line.addTo(state.fleetMap);
+    state.measure.line.bindPopup(
+      "<strong>" + t("Distance") + "</strong><br>" + state.measure.total.toFixed(1) + " nm",
+      { offset: [0, -6] }
+    );
+  }
+}
+
+function restoreMeasure() {
+  if (state.fleetMap && state.measure.points.length >= 2) drawMeasure();
+}
+
+$("measure-btn").addEventListener("click", toggleMeasure);
+$("measure-clear").addEventListener("click", clearMeasure);
+
+/* ---------------- ports & marinas ---------------- */
+
+const PORTS = [
+  /* Mediterranean */
+  ["Monaco", "Monaco", 43.7384, 7.4246],
+  ["Antibes (Port Vauban)", "France", 43.5804, 7.1301],
+  ["Nice", "France", 43.6953, 7.2662],
+  ["Cannes", "France", 43.5455, 7.0298],
+  ["Saint-Tropez", "France", 43.273, 6.6405],
+  ["Marseille", "France", 43.2965, 5.3698],
+  ["Barcelona", "Spain", 41.3784, 2.1925],
+  ["Palma de Mallorca", "Spain", 39.5696, 2.6502],
+  ["Ibiza Marina", "Spain", 38.9087, 1.4351],
+  ["Valencia", "Spain", 39.4603, -0.3139],
+  ["Porto Cervo", "Italy", 41.1377, 9.5323],
+  ["Portofino", "Italy", 44.3031, 9.2098],
+  ["Sanremo", "Italy", 43.8158, 7.7762],
+  ["Naples", "Italy", 40.842, 14.266],
+  ["Capri", "Italy", 40.5532, 14.2222],
+  ["Amalfi", "Italy", 40.634, 14.6029],
+  ["Porto Rotondo", "Italy", 41.0284, 9.5433],
+  ["Cagliari", "Italy", 39.2054, 9.1172],
+  ["Split", "Croatia", 43.5081, 16.4402],
+  ["Dubrovnik", "Croatia", 42.6507, 18.0781],
+  ["Rijeka", "Croatia", 45.3271, 14.4422],
+  ["Zadar", "Croatia", 44.1194, 15.2314],
+  ["Athens (Piraeus)", "Greece", 37.942, 23.6469],
+  ["Mykonos", "Greece", 37.4467, 25.3289],
+  ["Santorini", "Greece", 36.3932, 25.4615],
+  ["Corfu", "Greece", 39.6243, 19.9216],
+  ["Istanbul", "Turkey", 41.0082, 28.9784],
+  ["Bodrum", "Turkey", 37.0353, 27.425],
+  ["Marmaris", "Turkey", 36.8553, 28.2685],
+  ["Gocek", "Turkey", 36.7588, 28.9434],
+  ["Portoroz", "Slovenia", 45.5099, 13.5898],
+  ["Valletta", "Malta", 35.8989, 14.5146],
+  ["Algiers", "Algeria", 36.7727, 3.0591],
+  ["Tunis", "Tunisia", 36.8065, 10.1815],
+  /* Caribbean & Atlantic */
+  ["St Barth (Gustavia)", "Saint Barthélemy", 17.8966, -62.8495],
+  ["Antigua (English Harbour)", "Antigua & Barbuda", 17.0078, -61.7645],
+  ["St Martin (Marigot)", "St Martin", 18.067, -63.0825],
+  ["Fort-de-France", "Martinique", 14.607, -61.0653],
+  ["Bridgetown", "Barbados", 13.1025, -59.6162],
+  ["Nassau", "Bahamas", 25.0778, -77.3438],
+  ["Georgetown (Exuma)", "Bahamas", 23.5166, -75.7658],
+  ["Marsh Harbour", "Bahamas", 26.5411, -77.0652],
+  ["Grand Cayman", "Cayman Islands", 19.3028, -81.3833],
+  ["Road Town", "British Virgin Islands", 18.4241, -64.6232],
+  ["Kingston", "Jamaica", 17.9712, -76.7936],
+  ["San Juan", "Puerto Rico", 18.4655, -66.1057],
+  ["Havana", "Cuba", 23.1136, -82.3666],
+  /* USA */
+  ["Miami", "USA", 25.7617, -80.1918],
+  ["Fort Lauderdale", "USA", 26.1224, -80.1373],
+  ["Palm Beach", "USA", 26.7056, -80.0364],
+  ["Key West", "USA", 24.5551, -81.78],
+  ["Newport", "USA", 41.4901, -71.3128],
+  ["New York", "USA", 40.7128, -74.006],
+  ["Charleston", "USA", 32.7765, -79.9311],
+  ["Savannah", "USA", 32.0809, -81.0912],
+  ["Seattle", "USA", 47.6062, -122.3321],
+  ["San Francisco", "USA", 37.7749, -122.4194],
+  ["Los Angeles", "USA", 33.7363, -118.2617],
+  ["San Diego", "USA", 32.7157, -117.1611],
+  ["Honolulu", "USA", 21.3069, -157.8583],
+  /* Middle East & Africa */
+  ["Dubai", "UAE", 25.2048, 55.2708],
+  ["Abu Dhabi", "UAE", 24.4539, 54.3773],
+  ["Doha", "Qatar", 25.2854, 51.531],
+  ["Muscat", "Oman", 23.588, 58.3829],
+  ["Jeddah", "Saudi Arabia", 21.4858, 39.1925],
+  ["Alexandria", "Egypt", 31.2001, 29.9187],
+  ["Port Said", "Egypt", 31.259, 32.3019],
+  ["Casablanca", "Morocco", 33.5731, -7.5898],
+  ["Cape Town", "South Africa", -33.9249, 18.4241],
+  /* Indian Ocean & Pacific */
+  ["Malé", "Maldives", 4.1755, 73.5093],
+  ["Port Victoria", "Seychelles", -4.6191, 55.4513],
+  ["Port Louis", "Mauritius", -20.1609, 57.5012],
+  ["Singapore", "Singapore", 1.2903, 103.8519],
+  ["Hong Kong", "China", 22.3193, 114.1694],
+  ["Tokyo (Yokohama)", "Japan", 35.4437, 139.638],
+  ["Sydney", "Australia", -33.8688, 151.2093],
+  ["Auckland", "New Zealand", -36.8485, 174.7633],
+  ["Auckland Marina", "New Zealand", -36.8292, 174.811],
+];
+
+function nearestPorts(lat, lon, n) {
+  if (lat == null || lon == null) return [];
+  return PORTS.map((p) => ({
+    name: p[0],
+    country: p[1],
+    lat: p[2],
+    lon: p[3],
+    d: haversine(lat, lon, p[2], p[3]),
+    bear: initialBearing(lat, lon, p[2], p[3]),
+  }))
+    .sort((a, b) => a.d - b.d)
+    .slice(0, n);
+}
+
+function renderPorts(v) {
+  const body = $("ports-body");
+  if (!body) return;
+  if (!v || !v.position || v.position.lat == null || v.position.lon == null) {
+    body.innerHTML = '<p class="tl-empty">' + t("No position data") + "</p>";
+    fillText("ports-note", "");
+    return;
+  }
+  const p = v.position;
+  const list = nearestPorts(p.lat, p.lon, 3);
+  if (!list.length) {
+    body.innerHTML = '<p class="tl-empty">' + t("No ports in the curated list near this vessel.") + "</p>";
+    return;
+  }
+  const sog = p.sog != null && p.sog >= 1 ? p.sog : null;
+  const eta = (d) => (sog ? fmtDur((d / sog) * 3600000) : "—");
+  body.innerHTML =
+    '<div class="ports-grid">' +
+    list
+      .map(
+        (pt) =>
+          '<div class="port-item">' +
+          '<div class="pi-name">' + escapeHtml(pt.name) + "</div>" +
+          '<div class="pi-meta">' + escapeHtml(pt.country) + "</div>" +
+          '<div class="pi-stats">' +
+          '<span>' + t("Distance") + ": " + Math.round(pt.d).toLocaleString() + " nm</span>" +
+          '<span>' + t("ETA at current speed") + ": " + eta(pt.d) + "</span>" +
+          '<span>' + t("Bearing") + ": " + Math.round(pt.bear) + "° " + compass(pt.bear) + "</span>" +
+          "</div></div>"
+      )
+      .join("") +
+    "</div>";
+  const near = state.vessels
+    .map((x) => ({
+      x,
+      d: x.position && x.position.lat != null ? haversine(x.position.lat, x.position.lon, list[0].lat, list[0].lon) : Infinity,
+    }))
+    .filter((o) => isFinite(o.d) && o.d <= 50)
+    .sort((a, b) => a.d - b.d);
+  fillText(
+    "ports-note",
+    tF("Nearest {n} major ports to {name}", { n: list.length, name: v.name })
+  );
+  const nearEl = $("ports-near");
+  if (nearEl) {
+    if (near.length) {
+      nearEl.innerHTML =
+        '<div class="vl-head">' +
+        tF("Tracked vessels within {n} nm of {port}", { n: 50, port: list[0].name }) +
+        "</div>" +
+        near
+          .map(
+            (o) =>
+              '<span class="enc-chip">' + escapeHtml(o.x.name) + " · " + o.d.toFixed(1) + " nm</span>"
+          )
+          .join("");
+      nearEl.style.display = "";
+    } else {
+      nearEl.style.display = "none";
+    }
+  }
+}
+
 /* ---------------- discovery ---------------- */
 
 const DISCOVER = [
@@ -1127,6 +1467,23 @@ const I18N = {
     "Positions come from free AIS and are rounded to ~1° — use Live track for a precise position.": "Pozycje pochodzą z darmowego AIS i są zaokrąglane do ~1° — dla dokładnej pozycji użyj „Śledzenia na żywo”.",
     "Trend": "Trend", "Compare": "Porównaj", "Fleet comparison": "Porównanie floty",
     "Speed history": "Historia prędkości", "Select two vessels to compare": "Wybierz dwie jednostki do porównania",
+    "📈 Speed track": "📈 Trasa prędkości",
+    "slow": "wolno", "fast": "szybko",
+    "📏 Measure": "📏 Pomiar", "📏 Measuring…": "📏 Mierz…", "✕ Clear": "✕ Wyczyść",
+    "Click the map to add points — double-click to finish.": "Klikaj mapę, aby dodać punkty — kliknij dwukrotnie, aby zakończyć.",
+    "Total {d} nm": "Razem {d} nm",
+    "Streets": "Ulice", "Satellite": "Satelita", "Nautical charts": "Mapy nawigacyjne",
+    "Distance": "Odległość",
+    "Nearby Ports & Marinas": "Pobliskie porty i mariny",
+    "Nearest {n} major ports to {name}": "Najbliższe {n} duże porty dla {name}",
+    "ETA at current speed": "ETA przy obecnej prędkości", "Bearing": "Namiar",
+    "Tracked vessels within {n} nm of {port}": "Śledzone jednostki w promieniu {n} nm od {port}",
+    "No ports in the curated list near this vessel.": "Brak portów z listy w pobliżu tej jednostki.",
+    "Curated list of major superyacht ports; distances are great-circle in nautical miles.": "Ręcznie opracowana lista najważniejszych portów superjachtów; odległości to odległości ortodromiczne w milach morskich.",
+    "Speed track colour-codes each vessel's recorded trail by speed — green is slow, red is fast.": "„Trasa prędkości” koloruje zarejestrowaną trasę każdej jednostki wg prędkości — zielony oznacza wolną, czerwony szybką.",
+    "The Measure tool computes the distance between clicks on the fleet map.": "Narzędzie „Pomiar” oblicza odległość między kliknięciami na mapie floty.",
+    "Switch the fleet map between street and satellite imagery, or overlay nautical charts, with the layer control on the map.": "Przełączaj mapę floty między widokiem ulic a satelitą lub nałóż mapy nawigacyjne, korzystając z kontrolki warstw na mapie.",
+    "Nearby Ports & Marinas lists the closest major ports to the selected vessel — with distance, ETA at current speed and tracked vessels near the nearest port.": "„Pobliskie porty i mariny” pokazują najbliższe duże porty dla wybranej jednostki — z odległością, ETA przy obecnej prędkości i śledzonymi jednostkami w pobliżu najbliższego portu.",
   },
   it: {
     "Map": "Mappa", "Fleet": "Flotta", "Activity": "Attività", "Discover": "Scopri",
@@ -1257,6 +1614,23 @@ const I18N = {
     "Positions come from free AIS and are rounded to ~1° — use Live track for a precise position.": "Le posizioni provengono dall'AIS gratuito e sono arrotondate a ~1° — usa „Traccia live” per una posizione precisa.",
     "Trend": "Andamento", "Compare": "Confronta", "Fleet comparison": "Confronto flotta",
     "Speed history": "Cronologia velocità", "Select two vessels to compare": "Seleziona due navi da confrontare",
+    "📈 Speed track": "📈 Traccia velocità",
+    "slow": "lenta", "fast": "veloce",
+    "📏 Measure": "📏 Misura", "📏 Measuring…": "📏 Misura in corso…", "✕ Clear": "✕ Pulisci",
+    "Click the map to add points — double-click to finish.": "Clicca sulla mappa per aggiungere punti — doppio clic per terminare.",
+    "Total {d} nm": "Totale {d} nm",
+    "Streets": "Strade", "Satellite": "Satellite", "Nautical charts": "Carte nautiche",
+    "Distance": "Distanza",
+    "Nearby Ports & Marinas": "Porti e marine vicine",
+    "Nearest {n} major ports to {name}": "I {n} porti principali più vicini a {name}",
+    "ETA at current speed": "ETA alla velocità attuale", "Bearing": "Rilevamento",
+    "Tracked vessels within {n} nm of {port}": "Navi tracciate entro {n} nm da {port}",
+    "No ports in the curated list near this vessel.": "Nessun porto dell'elenco vicino a questa nave.",
+    "Curated list of major superyacht ports; distances are great-circle in nautical miles.": "Elenco curato dei principali porti per superyacht; le distanze sono ortodromiche in miglia nautiche.",
+    "Speed track colour-codes each vessel's recorded trail by speed — green is slow, red is fast.": "La „Traccia velocità” colora il percorso registrato di ogni nave in base alla velocità — verde lenta, rossa veloce.",
+    "The Measure tool computes the distance between clicks on the fleet map.": "Lo strumento „Misura” calcola la distanza tra i clic sulla mappa della flotta.",
+    "Switch the fleet map between street and satellite imagery, or overlay nautical charts, with the layer control on the map.": "Passa dalla mappa flotta tra immagini stradali e satellitari, o sovrapponi carte nautiche, con il controllo dei livelli sulla mappa.",
+    "Nearby Ports & Marinas lists the closest major ports to the selected vessel — with distance, ETA at current speed and tracked vessels near the nearest port.": "„Porti e marine vicine” elenca i porti principali più vicini alla nave selezionata — con distanza, ETA alla velocità attuale e navi tracciate vicino al porto più vicino.",
   },
 };
 
@@ -1352,6 +1726,8 @@ function applyLang() {
   renderDiscover();
   renderAlertsUI();
   renderSelected();
+  rebuildLayerControl();
+  renderMeasureButton();
   if (!$("help-overlay").classList.contains("hidden")) renderHelp();
 }
 
@@ -1667,6 +2043,9 @@ const HELP = [
       "Live track shows the precise AIS position and 24 h track of the selected vessel.",
       "Fleet view shows every tracked vessel on one map — markers point along their heading.",
       "Ghost track projects where each moving vessel will be in 6 / 12 / 24 h.",
+      "Speed track colour-codes each vessel's recorded trail by speed — green is slow, red is fast.",
+      "The Measure tool computes the distance between clicks on the fleet map.",
+      "Switch the fleet map between street and satellite imagery, or overlay nautical charts, with the layer control on the map.",
       "Replay plays back the positions this app has recorded since you started watching.",
       "Click a vessel on the map to open its live track.",
     ],
@@ -1689,6 +2068,7 @@ const HELP = [
       "On course compares the vessel's heading with the bearing to its destination.",
       "The progress bar tracks the voyage between the last port (ATD) and destination (ETA).",
       "Voyage history lists the journey observed by this app: last port → destination changes → current destination.",
+      "Nearby Ports & Marinas lists the closest major ports to the selected vessel — with distance, ETA at current speed and tracked vessels near the nearest port.",
     ],
   },
   {
@@ -1973,6 +2353,7 @@ function renderSelected() {
   renderVoyageLog(v);
   renderInsights(v);
   renderAboard(v);
+  renderPorts(v);
   updateRadarCenter();
   loadWeather(v);
 }
@@ -2050,9 +2431,30 @@ function renderFleetMap() {
   ensureLeaflet(() => {
     if (!state.fleetMap) {
       state.fleetMap = L.map("fleetmap").setView([30, 0], 3);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "&copy; OpenStreetMap contributors",
-      }).addTo(state.fleetMap);
+      state.baseLayers = {
+        streets: L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: "&copy; OpenStreetMap contributors",
+        }),
+        satellite: L.tileLayer(
+          "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+          { attribution: "&copy; Esri, Maxar, Earthstar Geographics" }
+        ),
+        charts: L.tileLayer("https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png", {
+          attribution: "&copy; OpenSeaMap contributors",
+          maxZoom: 18,
+        }),
+      };
+      state.baseLayers.streets.addTo(state.fleetMap);
+      rebuildLayerControl();
+      state.fleetMap.on("click", (e) => {
+        if (state.measure.active) addMeasurePoint(e.latlng.lat, e.latlng.lng);
+      });
+      state.fleetMap.on("dblclick", (e) => {
+        if (state.measure.active) {
+          L.DomEvent.stop(e);
+          toggleMeasure();
+        }
+      });
     }
     if (state.fleetLayers) state.fleetLayers.forEach((l) => state.fleetMap.removeLayer(l));
     state.fleetLayers = [];
@@ -2141,6 +2543,8 @@ function renderFleetMap() {
         }
       }
 
+      drawSpeedTracks(add);
+
       if (group) {
         group.addTo(state.fleetMap);
         state.fleetLayers.push(group);
@@ -2148,8 +2552,26 @@ function renderFleetMap() {
       if (bounds.length) state.fleetMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 7 });
       else state.fleetMap.setView([30, 0], 3);
       state.fleetMap.invalidateSize();
+      restoreMeasure();
     });
   });
+}
+
+function rebuildLayerControl() {
+  if (!state.fleetMap || !state.baseLayers) return;
+  if (state.layerControl) state.fleetMap.removeControl(state.layerControl);
+  state.layerControl = L.control
+    .layers(
+      {
+        [t("Streets")]: state.baseLayers.streets,
+        [t("Satellite")]: state.baseLayers.satellite,
+      },
+      {
+        [t("Nautical charts")]: state.baseLayers.charts,
+      },
+      { collapsed: false, position: "topright" }
+    )
+    .addTo(state.fleetMap);
 }
 
 document.addEventListener("click", (e) => {
@@ -2286,6 +2708,7 @@ async function init() {
   renderTimeline();
   renderAlertsUI();
   renderGhostToggle();
+  renderSpeedTrackToggle();
   renderDiscover();
   checkProximity();
   updateShareUrl();

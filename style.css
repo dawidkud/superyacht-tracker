@@ -429,6 +429,57 @@ main { padding: 12px 22px 46px; }
   font-weight: 700; font-size: 12px; padding: 7px 10px; border-radius: 8px; cursor: pointer;
 }
 
+/* Fleet map tools (speed track / measure / legend) */
+.map-tools {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 0 2px 10px; font-size: 12px;
+}
+.map-tools .dim { font-size: 12px; }
+.speed-legend {
+  display: inline-flex; align-items: center; gap: 7px; margin-left: auto;
+  background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+  padding: 3px 10px; font-size: 11px; color: var(--dim);
+}
+.sl-bar {
+  width: 70px; height: 7px; border-radius: 99px;
+  background: linear-gradient(90deg, hsl(140 82% 52%), hsl(70 82% 52%), hsl(0 82% 52%));
+}
+.sl-label { font-variant-numeric: tabular-nums; }
+
+/* Layer control (streets / satellite / charts) */
+.leaflet-control-layers {
+  background: var(--card-2) !important; color: var(--text) !important;
+  border: 1px solid var(--line-strong) !important; border-radius: 10px !important;
+  box-shadow: var(--shadow-sm) !important; font-family: var(--font) !important;
+}
+.leaflet-control-layers-expanded { padding: 9px 11px !important; }
+.leaflet-control-layers-toggle { background-color: var(--card-2) !important; }
+.leaflet-control-layers-base label, .leaflet-control-layers-overlays label {
+  font-size: 12px; color: var(--text); padding: 2px 0;
+}
+.leaflet-control-layers-base input, .leaflet-control-layers-overlays input { accent-color: var(--accent); }
+.leaflet-control-layers-separator { border-top: 1px solid var(--line) !important; margin: 6px 0 !important; }
+
+/* =============================================================
+   Ports & marinas
+   ============================================================= */
+
+.ports-body { display: flex; flex-direction: column; gap: 11px; }
+.ports-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.port-item {
+  background: var(--card); border: 1px solid var(--line); border-radius: 13px;
+  padding: 14px 15px; transition: border-color var(--transition), transform var(--transition), box-shadow var(--transition);
+}
+.port-item:hover { border-color: var(--line-strong); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.pi-name { font-size: 15px; font-weight: 800; color: var(--text); }
+.pi-meta {
+  font-size: 10.5px; color: var(--accent); text-transform: uppercase; letter-spacing: 1px;
+  font-weight: 700; margin: 3px 0 9px;
+}
+.pi-stats { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.ports-near { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.ports-near .enc-chip { align-self: flex-start; }
+
 /* =============================================================
    Voyage intelligence
    ============================================================= */

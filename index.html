@@ -151,8 +151,18 @@
         <p class="map-note" data-i18n="Live AIS position and 24 h track of the selected vessel via VesselFinder · Map data © OpenStreetMap contributors">Live AIS position and 24&nbsp;h track of the selected vessel via VesselFinder · Map data © OpenStreetMap contributors</p>
       </div>
       <div id="map-fleet" class="map-wrap hidden">
+        <div class="map-tools">
+          <label class="ghost-toggle" data-i18n-title="Colour-code each vessel's recorded trail by speed (green = slow, red = fast)" title="Colour-code each vessel's recorded trail by speed (green = slow, red = fast)">
+            <input type="checkbox" id="speed-track-toggle">
+            <span class="ghost-label" data-i18n="📈 Speed track">📈 Speed track</span>
+          </label>
+          <button class="mini-btn" id="measure-btn" data-i18n="📏 Measure">📏 Measure</button>
+          <button class="mini-btn" id="measure-clear" data-i18n="✕ Clear">✕ Clear</button>
+          <span class="dim" id="measure-info"></span>
+          <span class="speed-legend hidden" id="speed-legend"></span>
+        </div>
         <div id="fleetmap"></div>
-        <p class="map-note" data-i18n="Fleet overview — boat markers are rotated to heading and colour-coded by status; circles show the ~1° position uncertainty of the free AIS feed. Use Live track for the precise track of a selected vessel.">Fleet overview — boat markers are rotated to heading and colour-coded by status; circles show the ~1° position uncertainty of the free AIS feed. Use <em>Live track</em> for the precise track of a selected vessel.</p>
+        <p class="map-note" data-i18n="Fleet overview — boat markers are rotated to heading and colour-coded by status; circles show the ~1° position uncertainty of the free AIS feed. Use Live track for the precise track of a selected vessel. Switch street / satellite base layers and nautical charts with the control on the map.">Fleet overview — boat markers are rotated to heading and colour-coded by status; circles show the ~1° position uncertainty of the free AIS feed. Use <em>Live track</em> for the precise track of a selected vessel. Switch street / satellite base layers and nautical charts with the control on the map.</p>
       </div>
     </section>
 
@@ -326,6 +336,16 @@
         <div class="w-item"><span class="w-icon">🌪️</span><span class="w-val" id="w-current">—</span><span class="w-label" data-i18n="Current">Current</span></div>
       </div>
       <p class="card-note" data-i18n="Weather and sea state from Open-Meteo for the vessel's reported area. Updates periodically.">Weather and sea state from Open-Meteo (air + marine) for the vessel's reported area. Updates periodically.</p>
+    </section>
+
+    <section id="ports" class="card">
+      <div class="card-head">
+        <h2 data-i18n="Nearby Ports & Marinas">Nearby Ports &amp; Marinas</h2>
+        <span class="dim" id="ports-note"></span>
+      </div>
+      <div id="ports-body" class="ports-body"></div>
+      <div id="ports-near" class="ports-near"></div>
+      <p class="card-note" data-i18n="Curated list of major superyacht ports; distances are great-circle in nautical miles.">Curated list of major superyacht ports; distances are great-circle in nautical miles.</p>
     </section>
 
     <section id="discover" class="card">

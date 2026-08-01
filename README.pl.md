@@ -22,6 +22,9 @@ Wersja demonstracyjna: **https://superyacht-tracker.onrender.com**
   - znaczniki obrócone zgodnie z **kursem** i pokolorowane wg statusu
   - koła pokazujące niepewność pozycji (~1°) darmowego kanału AIS
   - grupowanie znaczników (clustering) dla dużych flot
+  - przełączanie między warstwami bazowymi **ulice** i **satelita** (Esri) lub nałożenie **map nawigacyjnych** (OpenSeaMap) — kontrolka warstw na mapie
+  - **Trasa prędkości** — koloruje zarejestrowaną trasę każdej jednostki wg prędkości (zielony = wolno → czerwony = szybko)
+  - **Narzędzie pomiaru** — klikaj, aby zmierzyć odległości ortodromiczne w milach morskich
 - **Trasa przewidywana** — przełącznik pokazujący przewidywaną pozycję poruszających się jednostek (6/12/24 h) na podstawie kursu i prędkości, rysowany jako linia przerywana z zaznaczoną pozycją po 24 h
 
 ### Wizualizacja floty
@@ -38,6 +41,7 @@ Wersja demonstracyjna: **https://superyacht-tracker.onrender.com**
 - **Historia rejsu** — dziennik podróży jednostki (ostatni port → obserwowane zmiany celu → obecny cel)
 - **Alerty zbliżeń** — powiadomienia przeglądarki i zdarzenia na osi czasu, gdy dwie śledzone jednostki zbliżą się na zadaną odległość (5/10/25/50 nm), z chipami bieżących spotkań
 - **Atmosfera na pokładzie** — lokalny czas jednostki, wschód/zachód słońca na jej pozycji (obliczenia NOAA) i odliczanie „zachód za …"
+- **Pobliskie porty i mariny** — najbliższe duże porty superjachtów dla wybranej jednostki, z odległością, namiarem i ETA przy obecnej prędkości, plus śledzone jednostki w pobliżu najbliższego portu
 - **Pogoda na pozycji** — temperatura, wiatr i porywy na żywo z Open-Meteo
 
 ### Udostępnianie i centrum dowodzenia
@@ -57,7 +61,7 @@ Cztery przełączalne motywy kolorystyczne (Midnight, Daylight, Emerald, Sunset)
 | Backend | Node.js — zero zależności npm (wbudowane `http`/`https`) |
 | Dane jednostek | Lokalny proxy parsuje strony VesselFinder → czysty JSON |
 | Zdjęcia | Pobierane i zapisywane lokalnie dla każdej jednostki |
-| Mapa floty | Leaflet + kafelki OpenStreetMap + grupowanie znaczników |
+| Mapa floty | Leaflet + kafelki OpenStreetMap (ulice) + Esri World Imagery (satelita) + OpenSeaMap (mapy nawigacyjne) + grupowanie znaczników |
 | Śledzenie na żywo | Osadzone AIS VesselFinder |
 | Pogoda | Open-Meteo |
 | Geokodowanie | OpenStreetMap Nominatim |
