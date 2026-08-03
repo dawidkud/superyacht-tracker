@@ -233,6 +233,12 @@ select.theme-select option, select.lang-select option { background: var(--card);
 .stat-chip:hover { border-color: var(--line-strong); transform: translateY(-1px); }
 .stat-chip b { font-size: 16px; color: var(--text); font-variant-numeric: tabular-nums; }
 .stat-chip .chip-label { font-size: 10.5px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; }
+.stat-chip.live { border-color: color-mix(in srgb, var(--accent-2) 45%, transparent); background: color-mix(in srgb, var(--accent-2) 8%, var(--card)); }
+.stat-chip.live b { color: var(--accent-2); animation: livePulse 1.6s ease-in-out infinite; }
+@keyframes livePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
 
 .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
 .dot.green { background: var(--accent-2); box-shadow: 0 0 8px color-mix(in srgb, var(--accent-2) 70%, transparent); }

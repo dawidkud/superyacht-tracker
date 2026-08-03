@@ -11,11 +11,25 @@ const https = require("https");
 const fs = require("fs");
 const path = require("path");
 const zlib = require("zlib");
+const crypto = require("crypto");
 
 const ROOT = __dirname;
 const PORT = process.env.PORT || 8123;
 const HOST = process.env.PORT ? "0.0.0.0" : "127.0.0.1";
 const PHOTO_DIR = path.join(ROOT, "photos");
+
+/* ---------------- env (.env file, if present) ---------------- */
+
+try {
+  const envFile = fs.readFileSync(path.join(ROOT, ".env"), "utf8");
+  for (const line of envFile.split("\n")) {
+    const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+    if (m && process.env[m[1]] === undefined)
+      process.env[m[1]] = m[2].trim().replace(/^["']|["']$/g, "");
+  }
+} catch (_) {}
+
+const AIS_KEY = process.env.AIS_STREAM_KEY || "";
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/126.0 Safari/537.36";
@@ -186,6 +200,296 @@ function parseVessel(html) {
   };
 }
 
+/* ================================================================
+ * aisstream.io real-time AIS feed (optional, needs AIS_STREAM_KEY)
+ * A minimal RFC 6455 WebSocket client — no npm dependencies.
+ * ================================================================ */
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const pad2 = (n) => String(n).padStart(2, "0");
+const trimAis = (s) => String(s == null ? "" : s).replace(/@+$/g, "").trim();
+const NAV_TEXT = [
+  "Under way using engine", "At anchor", "Not under command", "Restricted manoeuvrability",
+  "Constrained by her draught", "Moored", "Aground", "Engaged in fishing", "Under way sailing",
+  "", "", "", "", "", "", "Undefined",
+];
+
+/* Minimal WebSocket (client) frame layer */
+class WS {
+  constructor(socket) {
+    this.socket = socket;
+    this.buf = Buffer.alloc(0);
+    this.onText = null;
+    this.onClose = null;
+    socket.on("data", (d) => this.ingest(d));
+    socket.on("close", () => this.onClose && this.onClose());
+    socket.on("error", () => {});
+  }
+  ingest(chunk) {
+    this.buf = this.buf.length ? Buffer.concat([this.buf, chunk]) : chunk;
+    this.drain();
+  }
+  drain() {
+    for (;;) {
+      const b = this.buf;
+      if (b.length < 2) return;
+      const opcode = b[0] & 0x0f;
+      const masked = b[1] & 0x80;
+      let len = b[1] & 0x7f;
+      let off = 2;
+      if (len === 126) {
+        if (b.length < 4) return;
+        len = b.readUInt16BE(2);
+        off = 4;
+      } else if (len === 127) {
+        if (b.length < 10) return;
+        len = Number(b.readBigUInt64BE(2));
+        off = 10;
+      }
+      let maskKey = null;
+      if (masked) {
+        if (b.length < off + 4) return;
+        maskKey = b.slice(off, off + 4);
+        off += 4;
+      }
+      if (b.length < off + len) return;
+      const pay = b.slice(off, off + len);
+      this.buf = b.slice(off + len);
+      if (maskKey) {
+        for (let i = 0; i < pay.length; i++) pay[i] ^= maskKey[i & 3];
+      }
+      if (opcode === 0x1 || opcode === 0x2) {
+        if (this.onText) this.onText(pay.toString("utf8"));
+      } else if (opcode === 0x9) {
+        this.sendFrame(0xa, pay); // respond to ping
+      } else if (opcode === 0x8) {
+        try { this.sendFrame(0x8, pay); } catch (_) {}
+        this.socket.end();
+        return;
+      }
+    }
+  }
+  sendFrame(opcode, payload) {
+    const mask = crypto.randomBytes(4);
+    const len = payload.length;
+    let ext;
+    if (len < 126) {
+      ext = Buffer.from([0x80 | len]);
+    } else if (len < 65536) {
+      ext = Buffer.alloc(3);
+      ext[0] = 0x80 | 126;
+      ext.writeUInt16BE(len, 1);
+    } else {
+      ext = Buffer.alloc(9);
+      ext[0] = 0x80 | 127;
+      ext.writeBigUInt64BE(BigInt(len), 1);
+    }
+    const body = Buffer.from(payload);
+    for (let i = 0; i < body.length; i++) body[i] ^= mask[i & 3];
+    this.socket.write(Buffer.concat([Buffer.from([0x80 | opcode]), ext, mask, body]));
+  }
+  sendText(s) { this.sendFrame(0x1, Buffer.from(s, "utf8")); }
+  sendPing() { this.sendFrame(0x9, Buffer.alloc(0)); }
+}
+
+const AIS_URL = "wss://stream.aisstream.io/v0/stream";
+const AIS_BOX_MARGIN = 2; // degrees around each vessel's last-known position
+const AIS_DEFAULT_BOX = [[38.5, 7.5], [42.5, 19.0]]; // fallback: central Mediterranean
+
+/* Feed controller */
+const ais = {
+  key: AIS_KEY,
+  on: !!AIS_KEY,
+  status: "off",
+  ws: null,
+  cache: new Map(), // mmsi -> latest datum
+  fleet: new Map(), // mmsi -> { imo, lat, lon } (desired)
+  boxes: [AIS_DEFAULT_BOX],
+  backoff: 0,
+  lastSend: 0,
+  pingTimer: null,
+  subTimer: null,
+  reconnectTimer: null,
+};
+
+function aisBoxes() {
+  const boxes = [];
+  for (const v of ais.fleet.values()) {
+    if (v.lat == null || v.lon == null) continue;
+    const lat1 = Math.max(-90, Math.min(90, v.lat - AIS_BOX_MARGIN));
+    const lat2 = Math.max(-90, Math.min(90, v.lat + AIS_BOX_MARGIN));
+    boxes.push([[lat1, v.lon - AIS_BOX_MARGIN], [lat2, v.lon + AIS_BOX_MARGIN]]);
+  }
+  return boxes.length ? boxes : [AIS_DEFAULT_BOX];
+}
+
+/* NOTE: aisstream's FiltersShipMMSI filter is currently broken (see
+ * aisstream/issues #197, #108) — it silently drops every message when set.
+ * So we subscribe to bounding boxes around each tracked vessel's last-known
+ * position and filter by MMSI on our side instead. */
+function aisSubJson() {
+  return JSON.stringify({
+    APIKey: ais.key,
+    BoundingBoxes: ais.boxes,
+    FilterMessageTypes: [
+      "PositionReport",
+      "ExtendedClassBPositionReport",
+      "StandardClassBPositionReport",
+      "ShipStaticData",
+    ],
+  });
+}
+
+function aisResubscribe() {
+  if (!ais.on || !ais.ws) return;
+  const now = Date.now();
+  if (now - ais.lastSend < 10000) return; // aisstream limits to ~1 subscription update/sec
+  ais.lastSend = now;
+  try { ais.ws.sendText(aisSubJson()); } catch (_) {}
+}
+
+function aisSetFleet(list) {
+  ais.fleet = new Map();
+  for (const x of list) {
+    if (x && x.imo && x.mmsi) {
+      ais.fleet.set(String(x.mmsi), {
+        imo: String(x.imo),
+        lat: x.lat != null ? +x.lat : null,
+        lon: x.lon != null ? +x.lon : null,
+      });
+    }
+  }
+  ais.boxes = aisBoxes();
+  ais.lastSend = 0; // force a fresh subscription with the new filter
+  aisResubscribe();
+}
+
+function aisIngest(msg) {
+  if (!msg || typeof msg !== "object") return;
+  const meta = msg.MetaData || {};
+  const mmsi = meta.MMSI != null ? String(meta.MMSI) : null;
+  if (!mmsi || !ais.fleet.has(mmsi)) return; // only keep vessels we track
+  const rec = ais.cache.get(mmsi) || { mmsi, ts: 0 };
+  rec.ts = Date.now();
+  if (meta.latitude != null) rec.lat = +meta.latitude;
+  if (meta.longitude != null) rec.lon = +meta.longitude;
+  if (meta.ShipName) rec.name = trimAis(meta.ShipName);
+
+  const M = msg.Message || {};
+  const pick = (p) => {
+    if (!p) return;
+    if (p.Latitude != null) rec.lat = +p.Latitude;
+    if (p.Longitude != null) rec.lon = +p.Longitude;
+    if (p.Sog != null) rec.sog = +p.Sog;
+    if (p.Cog != null) rec.cog = +p.Cog;
+    if (p.TrueHeading != null) rec.heading = +p.TrueHeading;
+    if (p.NavigationalStatus != null) rec.navStatus = +p.NavigationalStatus;
+  };
+  if (msg.MessageType === "PositionReport") pick(M.PositionReport);
+  else if (msg.MessageType === "ExtendedClassBPositionReport") pick(M.ExtendedClassBPositionReport);
+  else if (msg.MessageType === "StandardClassBPositionReport") pick(M.StandardClassBPositionReport);
+  else if (msg.MessageType === "ShipStaticData") {
+    const s = M.ShipStaticData;
+    if (s) {
+      if (s.Name) rec.name = trimAis(s.Name);
+      if (s.Destination != null) rec.destination = trimAis(s.Destination);
+      if (s.ImoNumber != null) rec.imo = String(s.ImoNumber);
+      if (s.MaximumStaticDraught != null) rec.draught = +s.MaximumStaticDraught;
+      if (s.Eta) {
+        const e = s.Eta;
+        if (e.Hour != null && e.Minute != null) {
+          const hm = pad2(e.Hour) + ":" + pad2(e.Minute);
+          if (e.Month > 0 && e.Day > 0)
+            rec.eta = MONTHS[e.Month - 1] + " " + e.Day + " " + hm;
+          else if (e.Day > 0) rec.eta = e.Day + " " + hm;
+        }
+      }
+    }
+  }
+  ais.cache.set(mmsi, rec);
+}
+
+function aisScheduleReconnect() {
+  if (!ais.on || ais.reconnectTimer) return;
+  const delay = Math.min(60000, 5000 * Math.pow(2, ais.backoff++));
+  ais.reconnectTimer = setTimeout(() => {
+    ais.reconnectTimer = null;
+    aisConnect();
+  }, delay);
+}
+
+function aisConnect() {
+  if (!ais.on) return;
+  ais.status = "connecting";
+  const wsKey = crypto.randomBytes(16).toString("base64");
+  const req = https.request({
+    hostname: "stream.aisstream.io",
+    port: 443,
+    path: "/v0/stream",
+    method: "GET",
+    headers: {
+      Host: "stream.aisstream.io",
+      Upgrade: "websocket",
+      Connection: "Upgrade",
+      "Sec-WebSocket-Key": wsKey,
+      "Sec-WebSocket-Version": "13",
+      "User-Agent": UA,
+      Origin: "http://127.0.0.1:8123",
+    },
+  });
+  req.on("upgrade", (res, socket, head) => {
+    ais.backoff = 0;
+    ais.status = "connected";
+    const ws = new WS(socket);
+    ais.ws = ws;
+    ws.onText = (text) => {
+      try { aisIngest(JSON.parse(text)); } catch (_) {}
+    };
+    ws.onClose = () => {
+      ais.ws = null;
+      ais.status = "disconnected";
+      aisScheduleReconnect();
+    };
+    if (head && head.length) ws.ingest(head);
+    aisResubscribe();
+    clearInterval(ais.pingTimer);
+    clearInterval(ais.subTimer);
+    ais.pingTimer = setInterval(() => { if (ais.ws) ais.ws.sendPing(); }, 30000);
+    ais.subTimer = setInterval(aisResubscribe, 60000);
+    console.log("aisstream: connected (tracking " + ais.fleet.size + " vessel(s))");
+  });
+  req.on("response", (res) => { res.resume(); });
+  req.on("error", (err) => {
+    ais.status = "error";
+    aisScheduleReconnect();
+    if (ais.backoff === 1) console.error("aisstream: connect failed (" + err.message + ") — will retry");
+  });
+  req.end();
+}
+
+function aisStart() {
+  if (ais.on) aisConnect();
+}
+
+const AIS_FRESH_MS = 20 * 60000; // treat data older than 20 min as stale
+
+/* Merge the freshest live AIS observation into a VesselFinder vessel object */
+function applyLive(vessel) {
+  if (!ais.on || !vessel || !vessel.mmsi) return;
+  const r = ais.cache.get(String(vessel.mmsi));
+  if (!r || r.lat == null || r.lon == null) return;
+  vessel.position = vessel.position || {};
+  vessel.position.lat = r.lat;
+  vessel.position.lon = r.lon;
+  if (r.sog != null) vessel.position.sog = r.sog;
+  if (r.cog != null) vessel.position.cog = r.cog;
+  if (r.heading != null) vessel.position.heading = r.heading;
+  if (r.navStatus != null && NAV_TEXT[r.navStatus]) vessel.navStatus = NAV_TEXT[r.navStatus];
+  if (r.destination) vessel.destination = r.destination;
+  if (r.eta) vessel.eta = r.eta;
+  vessel.live = Date.now() - r.ts < AIS_FRESH_MS;
+}
+
 /* ---------------- Vessel lookup ---------------- */
 
 function ensurePhotoDir() {
@@ -262,6 +566,15 @@ function sendJson(res, code, obj) {
   res.end(JSON.stringify(obj));
 }
 
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on("data", (c) => chunks.push(c));
+    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    req.on("error", reject);
+  });
+}
+
 /* ---------------- Server ---------------- */
 
 http
@@ -275,9 +588,51 @@ http
         return sendJson(res, 400, { ok: false, error: "IMO must be a 7-digit number" });
       }
       lookupVessel(imo)
-        .then((vessel) => sendJson(res, 200, { ok: true, vessel }))
+        .then((vessel) => {
+          applyLive(vessel);
+          return sendJson(res, 200, { ok: true, vessel });
+        })
         .catch((err) => sendJson(res, 404, { ok: false, error: err.message }));
       return;
+    }
+
+    if (pathname === "/api/live") {
+      const now = Date.now();
+      const data = [];
+      for (const [mmsi, f] of ais.fleet) {
+        const r = ais.cache.get(mmsi);
+        if (!r || r.lat == null || r.lon == null) continue;
+        if (now - r.ts > AIS_FRESH_MS) continue;
+        data.push({
+          imo: f.imo,
+          mmsi,
+          lat: r.lat,
+          lon: r.lon,
+          sog: r.sog != null ? r.sog : null,
+          cog: r.cog != null ? r.cog : null,
+          heading: r.heading != null ? r.heading : null,
+          navStatus: r.navStatus != null ? NAV_TEXT[r.navStatus] : null,
+          destination: r.destination || null,
+          eta: r.eta || null,
+          ts: r.ts,
+        });
+      }
+      return sendJson(res, 200, { ok: true, live: ais.on ? ais.status : "off", data });
+    }
+
+    if (pathname === "/api/fleet" && req.method === "POST") {
+      return readBody(req)
+        .then((body) => {
+          try {
+            const obj = JSON.parse(body);
+            const list = Array.isArray(obj.vessels) ? obj.vessels : [];
+            aisSetFleet(list);
+            sendJson(res, 200, { ok: true, live: ais.on ? ais.status : "off" });
+          } catch (_) {
+            sendJson(res, 400, { ok: false, error: "Bad JSON body" });
+          }
+        })
+        .catch(() => sendJson(res, 400, { ok: false, error: "Bad body" }));
     }
 
     if (pathname === "/api/vessel" || pathname === "/api") {
@@ -287,7 +642,9 @@ http
     serveStatic(req, res, pathname);
   })
   .listen(PORT, HOST, () => {
+    aisStart();
     console.log(
       "Superyacht Tracker running at http://" + HOST + ":" + PORT + " (Ctrl-C to stop)"
     );
+    if (!ais.on) console.log("aisstream: AIS_STREAM_KEY not set — live feed disabled");
   });

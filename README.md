@@ -65,6 +65,7 @@ Four switchable colour themes (Midnight, Daylight, Emerald, Sunset) via the top-
 | Photos | Downloaded and cached locally per vessel |
 | Fleet map | Leaflet + OpenStreetMap tiles (streets) + Esri World Imagery (satellite) + OpenSeaMap (charts overlay) + marker clustering |
 | Live track | VesselFinder AIS embed |
+| **Real-time positions (optional)** | [aisstream.io](https://aisstream.io/) WebSocket feed — precise, live AIS when an `AIS_STREAM_KEY` is set |
 | Weather | Open-Meteo |
 | Geocoding | OpenStreetMap Nominatim |
 
@@ -74,13 +75,16 @@ Four switchable colour themes (Midnight, Daylight, Emerald, Sunset) via the top-
 
 ```bash
 cd superyacht-tracker
+# optional — enables the real-time aisstream.io AIS feed (precise live positions)
+# get a free key at https://aisstream.io/ and save it in a .env file:
+echo "AIS_STREAM_KEY=your-key" > .env
 node server.js
 # open http://127.0.0.1:8123
 ```
 
-Override the port with the `PORT` environment variable.
+Override the port with the `PORT` environment variable. The `.env` file is gitignored — on Render set `AIS_STREAM_KEY` as a service environment variable instead.
 
-> Why a backend? VesselFinder blocks browser-side requests (CORS), so a small local proxy fetches and caches the vessel data instead.
+> Why a backend? VesselFinder blocks browser-side requests (CORS), so a small local proxy fetches and caches the vessel data instead. Likewise, aisstream.io forbids browser connections (and its key must not be exposed), so the WebSocket feed runs on the server and is relayed to the app.
 
 ---
 
@@ -122,7 +126,7 @@ gh release create v1.1.0 --title "v1.1.0" --notes "…"
 
 ## Notes
 
-- Free AIS feeds report positions rounded to ~1°, so fleet-map markers are approximate; use *Live track* for the precise position.
+- Free AIS feeds report positions rounded to ~1°, so fleet-map markers are approximate; use *Live track* for the precise position. When the aisstream.io feed is enabled, positions for tracked vessels are replaced with real-time, precise AIS data (shown by a pulsing "LIVE AIS" chip in the stats bar).
 - "On course" and "distance to destination" depend on the destination resolving via OpenStreetMap geocoding.
 - Behavioral insights and the activity timeline build up over time as the app observes each vessel.
 - For informational purposes only — always verify with official AIS providers before navigation decisions.

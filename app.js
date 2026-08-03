@@ -24,6 +24,7 @@ const state = {
   compareMode: false,
   compareSel: [], // max 2 imos
   measure: { active: false, points: [], line: null, markers: [], total: 0 },
+  liveStatus: "off",
 };
 
 /* ---------------- theme switcher ---------------- */
@@ -62,6 +63,7 @@ function loadIMOs() {
 }
 function saveIMOs() {
   localStorage.setItem(K_IMOS, JSON.stringify(state.vessels.map((v) => v.imo)));
+  reportFleet();
 }
 function loadData(imo) {
   try {
@@ -334,10 +336,12 @@ function renderStats() {
     { label: t("At anchor"), value: r, dot: "amber" },
     { label: t("Avg SOG"), value: avg, dot: "blue" },
   ];
+  if (state.liveStatus === "connected")
+    chips.push({ label: t("LIVE AIS"), value: "●", dot: "green", live: true });
   bar.innerHTML = chips
     .map(
       (c) =>
-        '<div class="stat-chip"><span class="dot ' + c.dot + '"></span>' +
+        '<div class="stat-chip' + (c.live ? " live" : "") + '"><span class="dot ' + c.dot + '"></span>' +
         "<b>" + c.value + "</b><span class=\"chip-label\">" + c.label + "</span></div>"
     )
     .join("");
@@ -1403,6 +1407,7 @@ const I18N = {
     "Tracking {name} ({imo})": "Śledzenie: {name} ({imo})",
     "closeApproach": "{a} i {b} są oddalone o {d} nm (próg {th} nm)",
     "just now": "teraz", "min ago": "min temu", "h ago": "godz. temu", "d ago": "dni temu",
+    "live": "na żywo", "LIVE AIS": "AIS NA ŻYWO",
     "181 m · 2013 · World's longest motor yacht": "181 m · 2013 · Najdłuższy jacht motorowy świata",
     "The longest private motor yacht ever built (180.6 m), launched for a member of the Abu Dhabi royal family.": "Najdłuższy prywatny jacht motorowy świata (180,6 m), zwodowany dla członka rodziny królewskiej Abu Zabi.",
     "162.5 m · 2010": "162,5 m · 2010",
@@ -1550,6 +1555,7 @@ const I18N = {
     "Tracking {name} ({imo})": "Tracciamento: {name} ({imo})",
     "closeApproach": "{a} e {b} distano {d} nm (soglia {th} nm)",
     "just now": "proprio ora", "min ago": "min fa", "h ago": "ore fa", "d ago": "giorni fa",
+    "live": "in diretta", "LIVE AIS": "AIS IN DIRETTA",
     "181 m · 2013 · World's longest motor yacht": "181 m · 2013 · Lo yacht a motore più lungo del mondo",
     "The longest private motor yacht ever built (180.6 m), launched for a member of the Abu Dhabi royal family.": "Il più lungo yacht a motore privato mai costruito (180,6 m), varato per un membro della famiglia reale di Abu Dhabi.",
     "162.5 m · 2010": "162,5 m · 2010",
@@ -2150,6 +2156,85 @@ async function refreshAll() {
   checkProximity();
 }
 
+/* ---------------- real-time AIS (aisstream.io, via the proxy) ---------------- */
+
+let lastFleetSig = "";
+
+async function reportFleet() {
+  const vessels = state.vessels.map((v) => ({
+    imo: v.imo,
+    mmsi: v.mmsi || null,
+    lat: v.position && v.position.lat != null ? +v.position.lat.toFixed(2) : null,
+    lon: v.position && v.position.lon != null ? +v.position.lon.toFixed(2) : null,
+  }));
+  const sig = JSON.stringify(vessels);
+  if (sig === lastFleetSig) return;
+  lastFleetSig = sig;
+  try {
+    await fetch("/api/fleet", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: sig,
+    });
+  } catch (_) {}
+}
+
+async function pollLive() {
+  if (!state.vessels.length || document.visibilityState !== "visible") return;
+  let data;
+  try {
+    const res = await fetch("/api/live");
+    data = await res.json();
+  } catch (_) {
+    return;
+  }
+  if (!data || !data.ok) return;
+  const prevLive = state.liveStatus;
+  state.liveStatus = data.live || "off";
+  let changed = prevLive !== state.liveStatus;
+  for (const it of data.data || []) {
+    const v = state.vessels.find((x) => x.imo === it.imo);
+    if (!v || it.lat == null || it.lon == null) continue;
+    if (!v.position) v.position = {};
+    if (v.position.lat !== it.lat || v.position.lon !== it.lon) changed = true;
+    v.position.lat = it.lat;
+    v.position.lon = it.lon;
+    if (it.sog != null) v.position.sog = it.sog;
+    if (it.cog != null) v.position.cog = it.cog;
+    if (it.heading != null) v.position.heading = it.heading;
+    if (it.navStatus) v.navStatus = it.navStatus;
+    if (it.destination) v.destination = it.destination;
+    if (it.eta) v.eta = it.eta;
+    v.live = true;
+  }
+  if (!changed) return;
+  renderFleetStrip();
+  renderBoard();
+  renderStats();
+  updateSelectedLive();
+  renderFleetMap();
+  checkProximity();
+  reportFleet();
+}
+
+function updateSelectedLive() {
+  const v = selected();
+  if (!v) return;
+  const sog = v.position && v.position.sog != null ? v.position.sog.toFixed(1) : "—";
+  const cog = v.position && v.position.cog != null ? v.position.cog : "—";
+  fillText("sog", sog);
+  fillText("cog", cog);
+  fillText("v-sog", sog);
+  fillText("v-cog", cog);
+  fillText("destination", v.destination || "—");
+  fillText("v-dest", v.destination || "—");
+  fillText("v-eta", v.eta || "—");
+  fillText("v-lastrep", t("live"));
+  fillText("i-pos", fmtLatLon(v));
+  setStatusPill(v.navStatus);
+  updateRadarCenter();
+}
+
 /* ---------------- add / remove / select ---------------- */
 
 async function addVessel(imo) {
@@ -2715,6 +2800,9 @@ async function init() {
   startRadar();
   renderSelected();
   refreshAll();
+  reportFleet();
+  pollLive();
+  setInterval(pollLive, 30000);
   setInterval(updateLastReport, 30000);
   setInterval(() => {
     const v = selected();
@@ -2724,7 +2812,10 @@ async function init() {
     }
   }, 1000);
   setInterval(() => {
-    if (document.visibilityState === "visible") refreshAll();
+    if (document.visibilityState === "visible") {
+      refreshAll();
+      reportFleet();
+    }
   }, 5 * 60 * 1000);
   setInterval(renderDiscover, 60000);
 }
