@@ -575,12 +575,218 @@ function readBody(req) {
   });
 }
 
+/* ================================================================
+ * Visitor tracking — hidden dashboard at /whosthere
+ * Logs the real client IP, user agent and request counts, and looks
+ * up country/city/ISP via ip-api.com (free, no key) with caching and
+ * a rate-limited queue (45 lookups/min max).
+ * ================================================================ */
+
+const GEO_FIELDS = "status,country,countryCode,city,isp,query";
+const ONLINE_MS = 10 * 60000;
+const visitors = new Map(); // ip -> visitor record
+const geoCache = new Map(); // ip -> { country, countryCode, city, isp }
+let geoQueue = [];
+let geoTimer = null;
+
+function clientIp(req) {
+  const fwd = req.headers["x-forwarded-for"];
+  if (fwd) {
+    const first = String(fwd).split(",")[0].trim();
+    if (first) return first;
+  }
+  return (req.socket && req.socket.remoteAddress) || "?";
+}
+
+function httpText(url) {
+  return new Promise((resolve, reject) => {
+    http
+      .get(url, (res) => {
+        if (res.statusCode !== 200) {
+          res.resume();
+          return reject(new Error("HTTP " + res.statusCode));
+        }
+        const chunks = [];
+        res.on("data", (c) => chunks.push(c));
+        res.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+        res.on("error", reject);
+      })
+      .on("error", reject);
+  });
+}
+
+function flushGeo() {
+  geoTimer = null;
+  if (!geoQueue.length) return;
+  const ip = geoQueue.shift();
+  if (!ip) {
+    geoQueue = [];
+    return;
+  }
+  httpText("http://ip-api.com/json/" + encodeURIComponent(ip) + "?fields=" + GEO_FIELDS)
+    .then((txt) => {
+      try {
+        const d = JSON.parse(txt);
+        if (d && d.status === "success") {
+          geoCache.set(ip, {
+            country: d.country,
+            countryCode: d.countryCode,
+            city: d.city,
+            isp: d.isp,
+          });
+          const v = visitors.get(ip);
+          if (v) {
+            v.country = d.country;
+            v.countryCode = d.countryCode;
+            v.city = d.city;
+            v.isp = d.isp;
+          }
+        }
+      } catch (_) {}
+    })
+    .catch(() => {})
+    .finally(() => {
+      if (geoQueue.length) geoTimer = setTimeout(flushGeo, 1400); // stay under 45 req/min
+    });
+}
+
+function trackVisit(req, pathname) {
+  const ip = clientIp(req);
+  const now = Date.now();
+  let v = visitors.get(ip);
+  if (!v) {
+    v = {
+      ip,
+      firstSeen: now,
+      lastSeen: now,
+      count: 0,
+      ua: String(req.headers["user-agent"] || "").slice(0, 160),
+      paths: new Map(), // pathname -> lastHit
+      country: null,
+      countryCode: null,
+      city: null,
+      isp: null,
+    };
+    visitors.set(ip, v);
+  }
+  v.lastSeen = now;
+  v.ua = String(req.headers["user-agent"] || "").slice(0, 160);
+  if (now - (v.paths.get(pathname) || 0) > 60000) {
+    v.paths.set(pathname, now);
+    v.count++;
+  }
+  if (!geoCache.has(ip) && !v.country && !geoQueue.includes(ip)) {
+    geoQueue.push(ip);
+    if (!geoTimer) geoTimer = setTimeout(flushGeo, 500);
+  }
+  if (visitors.size > 400) {
+    for (const [k, x] of visitors) {
+      if (now - x.lastSeen > 86400000) visitors.delete(k);
+    }
+  }
+}
+
+function whosthereHtml() {
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Who's there</title>
+<style>
+:root{--bg:#0b0f17;--card:#111826;--line:#1f2b3d;--text:#e7edf5;--dim:#7c8aa0;--accent:#19d3a5;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);padding:28px}
+h1{font-size:20px;letter-spacing:1px;font-weight:700}
+.stats{display:flex;gap:14px;margin:18px 0}
+.chip{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 16px}
+.chip b{font-size:18px;color:var(--accent);display:block}
+.chip span{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px}
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+th{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);background:#0d1420}
+td.ip{font-family:ui-monospace,Menlo,monospace;font-size:13px}
+.online-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);margin-right:8px}
+.offline{opacity:.55}
+.empty{color:var(--dim);padding:24px;text-align:center}
+#last{color:var(--dim);font-size:12px;margin-top:12px}
+</style></head><body>
+<h1>WHO'S THERE</h1>
+<div class="stats">
+  <div class="chip"><b id="s-online">0</b><span>Online now</span></div>
+  <div class="chip"><b id="s-total">0</b><span>Unique visitors</span></div>
+</div>
+<table><thead><tr>
+<th>Status</th><th>IP</th><th>Country</th><th>City</th><th>ISP</th><th>Requests</th><th>Last seen</th><th>User agent</th>
+</tr></thead><tbody id="rows"><tr><td class="empty" colspan="8">Waiting for data…</td></tr></tbody></table>
+<div id="last"></div>
+<script>
+async function refresh(){
+  try{
+    const r = await fetch("/api/whosthere"); if(!r.ok) throw 0;
+    const d = await r.json();
+    document.getElementById("s-online").textContent = d.online;
+    document.getElementById("s-total").textContent = d.total;
+    const flag = (cc) => cc && /^[A-Z]{2}$/.test(cc)
+      ? cc.toUpperCase().replace(/./g, c => String.fromCodePoint(127397 + c.charCodeAt(0))) : "";
+    const ago = (t) => { const s = Math.max(0, (d.now - t) / 1000); if (s < 60) return Math.floor(s) + "s"; if (s < 3600) return Math.floor(s/60) + "m"; return Math.floor(s/3600) + "h"; };
+    document.getElementById("rows").innerHTML = d.visitors.map(v =>
+      '<tr class="' + (v.online ? "" : "offline") + '">' +
+      '<td><span class="online-dot"></span>' + (v.online ? "now" : ago(v.lastSeen) + " ago") + '</td>' +
+      '<td class="ip">' + v.ip.replace("::ffff:", "") + '</td>' +
+      '<td>' + flag(v.countryCode) + " " + (v.country || "?") + '</td>' +
+      '<td>' + (v.city || "—") + '</td>' +
+      '<td>' + (v.isp || "—") + '</td>' +
+      '<td>' + v.count + '</td>' +
+      '<td>first ' + ago(v.firstSeen) + '</td>' +
+      '<td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (v.ua || "—") + '</td>' +
+      '</tr>').join("") || '<tr><td class="empty" colspan="8">No visitors yet.</td></tr>';
+    document.getElementById("last").textContent = "refreshed " + new Date().toLocaleTimeString();
+  } catch(_){}
+}
+setInterval(refresh, 5000);
+refresh();
+</script>
+</body></html>`;
+}
+
 /* ---------------- Server ---------------- */
 
 http
   .createServer((req, res) => {
     const u = new URL(req.url, "http://" + req.headers.host);
     const pathname = decodeURIComponent(u.pathname);
+
+    trackVisit(req, pathname);
+
+    if (pathname === "/whosthere") {
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      return res.end(whosthereHtml());
+    }
+
+    if (pathname === "/api/whosthere") {
+      const now = Date.now();
+      const list = Array.from(visitors.values())
+        .map((v) => ({
+          ip: v.ip,
+          firstSeen: v.firstSeen,
+          lastSeen: v.lastSeen,
+          online: now - v.lastSeen < ONLINE_MS,
+          count: v.count,
+          ua: v.ua,
+          country: v.country,
+          countryCode: v.countryCode,
+          city: v.city,
+          isp: v.isp,
+          paths: Array.from(v.paths.keys()),
+        }))
+        .sort((a, b) => b.lastSeen - a.lastSeen);
+      return sendJson(res, 200, {
+        ok: true,
+        now,
+        total: list.length,
+        online: list.filter((x) => x.online).length,
+        visitors: list,
+      });
+    }
 
     if (pathname === "/api/vessel") {
       const imo = (u.searchParams.get("imo") || "").replace(/\D/g, "");
