@@ -14,6 +14,9 @@ const state = {
   selectedImo: null,
   fleetMap: null,
   fleetLayers: [],
+  liveMap: null,
+  liveBase: null,
+  liveLayers: [],
   weatherToken: 0,
   sortKey: null,
   sortDir: 1,
@@ -1356,7 +1359,7 @@ const I18N = {
     "Live track": "Śledzenie na żywo", "Fleet view": "Widok floty",
     "👻 Ghost track": "👻 Trasa przewidywana",
     "Position & Tracking": "Pozycja i śledzenie",
-    "Live AIS position and 24 h track of the selected vessel via VesselFinder · Map data © OpenStreetMap contributors": "Pozycja AIS na żywo i 24-godzinna trasa wybranej jednostki (VesselFinder) · Dane mapy © OpenStreetMap",
+    "Live AIS position and recorded track of the selected vessel — precise, real-time positions when the AIS feed is enabled · Map data © OpenStreetMap contributors": "Pozycja AIS na żywo i zapisana trasa wybranej jednostki — precyzyjne pozycje w czasie rzeczywistym, gdy kanał AIS jest włączony · Dane mapy © OpenStreetMap",
     "Fleet overview — boat markers are rotated to heading and colour-coded by status; circles show the ~1° position uncertainty of the free AIS feed. Use Live track for the precise track of a selected vessel.": "Przegląd floty — znaczniki obrócone zgodnie z kursem i pokolorowane wg statusu; koła pokazują niepewność pozycji (~1°) darmowego kanału AIS. Użyj „Śledzenia na żywo” dla dokładnej trasy.",
     "Select or add a vessel to see its live position and track.": "Wybierz lub dodaj jednostkę, aby zobaczyć jej pozycję i trasę.",
     "Could not load the fleet map (Leaflet CDN unreachable).": "Nie można załadować mapy floty (CDN Leaflet niedostępny).",
@@ -1504,7 +1507,7 @@ const I18N = {
     "Live track": "Traccia live", "Fleet view": "Vista flotta",
     "👻 Ghost track": "👻 Traccia fantasma",
     "Position & Tracking": "Posizione e tracciamento",
-    "Live AIS position and 24 h track of the selected vessel via VesselFinder · Map data © OpenStreetMap contributors": "Posizione AIS live e rotta 24 h della nave selezionata (VesselFinder) · Dati mappa © OpenStreetMap",
+    "Live AIS position and recorded track of the selected vessel — precise, real-time positions when the AIS feed is enabled · Map data © OpenStreetMap contributors": "Posizione AIS live e rotta registrata della nave selezionata — posizioni precise in tempo reale quando il feed AIS è abilitato · Dati mappa © OpenStreetMap",
     "Fleet overview — boat markers are rotated to heading and colour-coded by status; circles show the ~1° position uncertainty of the free AIS feed. Use Live track for the precise track of a selected vessel.": "Panoramica flotta — i markeri seguono la rotta e il colore lo stato; i cerchi mostrano l'incertezza (~1°) del feed AIS gratuito. Usa „Traccia live” per la rotta precisa.",
     "Select or add a vessel to see its live position and track.": "Seleziona o aggiungi una nave per vedere posizione e rotta.",
     "Could not load the fleet map (Leaflet CDN unreachable).": "Impossibile caricare la mappa della flotta (CDN Leaflet non raggiungibile).",
@@ -2233,6 +2236,7 @@ function updateSelectedLive() {
   fillText("i-pos", fmtLatLon(v));
   setStatusPill(v.navStatus);
   updateRadarCenter();
+  updateLiveMap();
 }
 
 /* ---------------- add / remove / select ---------------- */
@@ -2446,24 +2450,109 @@ function renderSelected() {
 /* ---------------- maps ---------------- */
 
 function renderLiveMap() {
+  ensureLeaflet(() => {
+    initLiveMap();
+    drawLiveVessel(true);
+  });
+}
+
+function initLiveMap() {
+  if (state.liveMap || !$("vfmap")) return;
+  state.liveMap = L.map("vfmap").setView([30, 0], 3);
+  state.liveBase = {
+    streets: L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap contributors",
+    }),
+    satellite: L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      { attribution: "&copy; Esri, Maxar, Earthstar Geographics" }
+    ),
+  };
+  state.liveBase.streets.addTo(state.liveMap);
+  L.control
+    .layers(
+      {
+        [t("Streets")]: state.liveBase.streets,
+        [t("Satellite")]: state.liveBase.satellite,
+      },
+      null,
+      { collapsed: false, position: "topright" }
+    )
+    .addTo(state.liveMap);
+  state.liveLayers = [];
+}
+
+function drawLiveVessel(fit) {
+  const map = state.liveMap;
   const v = selected();
-  const holder = $("vfmap");
-  if (!v) {
-    holder.innerHTML = '<div class="map-fallback">' + t("Select or add a vessel to see its live position and track.") + "</div>";
-    return;
-  }
+  if (!map) return;
+  if (state.liveLayers) state.liveLayers.forEach((l) => map.removeLayer(l));
+  state.liveLayers = [];
+  if (!v) return;
   const p = v.position || {};
-  const lat = p.lat != null ? p.lat : 30;
-  const lon = p.lon != null ? p.lon : 0;
-  const url =
-    "https://www.vesselfinder.com/aismap?zoom=6&lat=" + lat + "&lon=" + lon +
-    "&width=100%25&height=520&names=true&imo=" + v.imo +
-    "&track=true&fleet=false&fleet_name=false&clicktoact=false&store_pos=true" +
-    "&ra=" + encodeURIComponent(location.origin);
-  holder.innerHTML =
-    '<iframe src="' + url +
-    '" frameborder="0" width="100%" height="520" allowfullscreen title="' +
-    tF("Live AIS map of {name}", { name: v.name }) + '"></iframe>';
+  const lat = p.lat != null ? p.lat : null;
+  const lon = p.lon != null ? p.lon : null;
+  const cat = statusCategory(v.navStatus);
+  const color = DOT_COLOR[cat];
+  const cog = p.cog != null ? p.cog : 0;
+  const bounds = [];
+  const add = (l) => state.liveLayers.push(l.addTo(map));
+
+  const hist = loadHist(v.imo);
+  const pts = hist.filter((s) => s.lat != null && s.lon != null).map((s) => [s.lat, s.lon]);
+  if (pts.length >= 2) {
+    add(L.polyline(pts, { color, weight: 3, opacity: 0.85 }));
+  }
+
+  if (lat != null && lon != null) {
+    bounds.push([lat, lon]);
+    add(
+      L.circle([lat, lon], {
+        radius: 60000,
+        color,
+        weight: 1,
+        opacity: 0.4,
+        fillColor: color,
+        fillOpacity: 0.06,
+        interactive: false,
+      })
+    );
+    add(
+      L.marker([lat, lon], {
+        icon: L.divIcon({
+          className: "",
+          iconSize: [24, 24],
+          iconAnchor: [12, 12],
+          html:
+            '<div class="boat-marker" style="--rot:' + cog + 'deg">' +
+            '<svg viewBox="0 0 24 24" width="24" height="24">' +
+            '<path fill="' + color + '" d="M12 2 L20 21 L12 17 L4 21 Z"/></svg></div>',
+        }),
+      }).bindPopup(
+        "<strong>" + escapeHtml(v.name) + "</strong><br>" +
+          (v.navStatus ? escapeHtml(trStatus(v.navStatus)) + "<br>" : "") +
+          (p.sog != null ? p.sog.toFixed(1) + " kn · " : "") +
+          (p.cog != null ? Math.round(p.cog) + "°<br>" : "") +
+          "≈ " + fmtLatLon(v) +
+          (v.destination ? "<br>→ " + escapeHtml(v.destination) : "")
+      )
+    );
+  }
+
+  if (fit) {
+    if (bounds.length) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 9 });
+    else map.setView([30, 0], 3);
+  }
+  map.invalidateSize();
+}
+
+function updateLiveMap() {
+  const wrap = $("map-live");
+  if (wrap && wrap.classList.contains("hidden")) return;
+  ensureLeaflet(() => {
+    initLiveMap();
+    drawLiveVessel(false);
+  });
 }
 
 function ensureLeaflet(cb) {
@@ -2672,6 +2761,7 @@ function switchTab(name) {
   $("map-live").classList.toggle("hidden", name !== "live");
   $("map-fleet").classList.toggle("hidden", name !== "fleet");
   if (name === "fleet") renderFleetMap();
+  if (name === "live" && state.liveMap) state.liveMap.invalidateSize();
 }
 $("tab-live").addEventListener("click", () => switchTab("live"));
 $("tab-fleet").addEventListener("click", () => switchTab("fleet"));
