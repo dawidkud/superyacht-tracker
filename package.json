@@ -1,6 +1,6 @@
 {
   "name": "superyacht-tracker",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Live AIS vessel tracking by IMO number — fleet board, maps, themes and weather.",
   "main": "server.js",
   "scripts": {
