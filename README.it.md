@@ -2,6 +2,8 @@
 
 [English](README.md) · [Polski](README.pl.md) · **Italiano**
 
+Codificato a vibe in OpenCode
+
 Tracciamento navale in tempo reale tramite **numero IMO** — aggiungi qualsiasi nave, osserva l'intera flotta e ottieni approfondimenti che nessun altro tracker offre gratuitamente.
 
 Demo live: **https://superyacht-tracker.onrender.com**

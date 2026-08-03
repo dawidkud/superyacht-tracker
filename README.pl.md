@@ -2,6 +2,8 @@
 
 [English](README.md) · **Polski** · [Italiano](README.it.md)
 
+Wykodowane na vibie w OpenCode
+
 Śledzenie jednostek pływających na żywo za pomocą **numeru IMO** — dodaj dowolną jednostkę, obserwuj całą flotę i korzystaj z funkcji, których żaden inny tracker nie oferuje za darmo.
 
 Wersja demonstracyjna: **https://superyacht-tracker.onrender.com**
