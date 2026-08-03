@@ -65,6 +65,7 @@ Cztery przełączalne motywy kolorystyczne (Midnight, Daylight, Emerald, Sunset)
 | Zdjęcia | Pobierane i zapisywane lokalnie dla każdej jednostki |
 | Mapa floty | Leaflet + kafelki OpenStreetMap (ulice) + Esri World Imagery (satelita) + OpenSeaMap (mapy nawigacyjne) + grupowanie znaczników |
 | Śledzenie na żywo | Osadzone AIS VesselFinder |
+| **Pozycje w czasie rzeczywistym (opcjonalnie)** | Kanał WebSocket [aisstream.io](https://aisstream.io/) — precyzyjne AIS na żywo, gdy ustawione `AIS_STREAM_KEY` |
 | Pogoda | Open-Meteo |
 | Geokodowanie | OpenStreetMap Nominatim |
 
@@ -74,13 +75,16 @@ Cztery przełączalne motywy kolorystyczne (Midnight, Daylight, Emerald, Sunset)
 
 ```bash
 cd superyacht-tracker
+# opcjonalnie — włącza kanał AIS aisstream.io w czasie rzeczywistym (precyzyjne pozycje na żywo)
+# bezpłatny klucz: https://aisstream.io/ — zapisz go w pliku .env:
+echo "AIS_STREAM_KEY=twoj-klucz" > .env
 node server.js
 # otwórz http://127.0.0.1:8123
 ```
 
-Port można zmienić zmienną środowiskową `PORT`.
+Port można zmienić zmienną środowiskową `PORT`. Plik `.env` jest ignorowany przez gita — na Render ustaw `AIS_STREAM_KEY` jako zmienną środowiskową usługi zamiast tego.
 
-> Dlaczego backend? VesselFinder blokuje żądania z przeglądarki (CORS), więc mały lokalny proxy pobiera i zapisuje w pamięci podręcznej dane jednostek.
+> Dlaczego backend? VesselFinder blokuje żądania z przeglądarki (CORS), więc mały lokalny proxy pobiera i zapisuje w pamięci podręcznej dane jednostek. Podobnie aisstream.io zabrania połączeń z przeglądarki (i nie wolno ujawniać jego klucza), więc kanał WebSocket działa po stronie serwera i jest przekazywany do aplikacji.
 
 ---
 
@@ -122,7 +126,7 @@ gh release create v1.1.0 --title "v1.1.0" --notes "…"
 
 ## Uwagi
 
-- Darmowe kanały AIS podają pozycje zaokrąglone do ~1°, więc znaczniki na mapie floty są przybliżone; dla dokładnej pozycji użyj *Śledzenia na żywo*.
+- Darmowe kanały AIS podają pozycje zaokrąglone do ~1°, więc znaczniki na mapie floty są przybliżone; dla dokładnej pozycji użyj *Śledzenia na żywo*. Gdy kanał aisstream.io jest włączony, pozycje śledzonych jednostek są zastępowane precyzyjnymi danymi AIS w czasie rzeczywistym (pokazuje to pulsujący znacznik „AIS NA ŻYWO" na pasku statystyk).
 - Funkcje „Zgodny z kursem" i „odległość do celu" zależą od poprawnego geokodowania celu przez OpenStreetMap.
 - Analiza zachowania i oś czasu aktywności budują się z czasem, gdy aplikacja obserwuje jednostki.
 - Informacje mają charakter wyłącznie orientacyjny — przed decyzjami nawigacyjnymi zawsze weryfikuj je u oficjalnych dostawców AIS.

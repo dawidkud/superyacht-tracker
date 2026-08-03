@@ -65,6 +65,7 @@ Quattro temi colore commutabili (Midnight, Daylight, Emerald, Sunset) dal menu n
 | Foto | Scaricate e memorizzate in locale per ogni nave |
 | Mappa flotta | Leaflet + tile OpenStreetMap (strade) + Esri World Imagery (satellite) + OpenSeaMap (carte nautiche) + clustering markeri |
 | Traccia live | Embed AIS VesselFinder |
+| **Posizioni in tempo reale (opzionale)** | Feed WebSocket [aisstream.io](https://aisstream.io/) — AIS preciso e live quando è impostata `AIS_STREAM_KEY` |
 | Meteo | Open-Meteo |
 | Geocodifica | OpenStreetMap Nominatim |
 
@@ -74,13 +75,16 @@ Quattro temi colore commutabili (Midnight, Daylight, Emerald, Sunset) dal menu n
 
 ```bash
 cd superyacht-tracker
+# opzionale — abilita il feed AIS in tempo reale di aisstream.io (posizioni precise e live)
+# chiave gratuita: https://aisstream.io/ — salvala in un file .env:
+echo "AIS_STREAM_KEY=tua-chiave" > .env
 node server.js
 # apri http://127.0.0.1:8123
 ```
 
-Puoi cambiare la porta con la variabile d'ambiente `PORT`.
+Puoi cambiare la porta con la variabile d'ambiente `PORT`. Il file `.env` è ignorato da git — su Render imposta `AIS_STREAM_KEY` come variabile d'ambiente del servizio.
 
-> Perché un backend? VesselFinder blocca le richieste dal browser (CORS), quindi un piccolo proxy locale recupera e memorizza i dati delle navi.
+> Perché un backend? VesselFinder blocca le richieste dal browser (CORS), quindi un piccolo proxy locale recupera e memorizza i dati delle navi. Allo stesso modo, aisstream.io vieta le connessioni dal browser (e la sua chiave non deve essere esposta), quindi il feed WebSocket gira sul server e viene inoltrato all'app.
 
 ---
 
@@ -122,7 +126,7 @@ gh release create v1.1.0 --title "v1.1.0" --notes "…"
 
 ## Note
 
-- I feed AIS gratuiti riportano posizioni arrotondate a ~1°, quindi i markeri della mappa flotta sono approssimativi; usa *Traccia live* per la posizione precisa.
+- I feed AIS gratuiti riportano posizioni arrotondate a ~1°, quindi i markeri della mappa flotta sono approssimativi; usa *Traccia live* per la posizione precisa. Quando il feed aisstream.io è abilitato, le posizioni delle navi tracciate vengono sostituite con dati AIS precisi in tempo reale (lo segnala il chip pulsante "AIS IN DIRETTA" nella barra delle statistiche).
 - „In rotta" e „distanza dalla destinazione" dipendono dalla geocodifica della destinazione via OpenStreetMap.
 - L'analisi comportamentale e la cronologia attività crescono nel tempo mentre l'app osserva ogni nave.
 - Solo a scopo informativo — verifica sempre con i fornitori AIS ufficiali prima di decisioni di navigazione.
