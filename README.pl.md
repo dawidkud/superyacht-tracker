@@ -1,6 +1,13 @@
-# Superyacht Tracker
+# 🛥️ Superyacht Tracker
 
 [English](README.md) · **Polski** · [Italiano](README.it.md)
+
+<p align="left">
+  <span style="color:#2fa8ff;font-weight:600">🛰️ AIS na żywo</span>&nbsp;·&nbsp;
+  <span style="color:#19d3a5;font-weight:600">🗺️ Mapy floty</span>&nbsp;·&nbsp;
+  <span style="color:#f0b429;font-weight:600">🌬️ Warstwa przepływu</span>&nbsp;·&nbsp;
+  <span style="color:#ff5d5d;font-weight:600">🔔 Strefy i alerty „ciemnej floty”</span>
+</p>
 
 Wykodowane na vibie w OpenCode
 
@@ -12,45 +19,48 @@ Wersja demonstracyjna: **https://superyacht-tracker.onrender.com**
 
 ## Funkcje
 
-### Śledzenie jednostek
-- Dodaj dowolną jednostkę po 7-cyfrowym numerze IMO (np. `9682875`, `9811000`)
-- Pasek floty z kartami ze zdjęciami — kliknij, aby zaznaczyć, usuń jednym kliknięciem
-- Flota, motyw, dziennik aktywności i dane jednostek zapisywane w `localStorage`
-- Automatyczne odświeżanie co 5 minut; pozycje odświeżane na żywo
+### 🚢 Śledzenie jednostek
+- 🚢 Dodaj dowolną jednostkę po 7-cyfrowym numerze IMO (np. `9682875`, `9811000`)
+- 🗂️ Pasek floty z kartami ze zdjęciami — kliknij, aby zaznaczyć, usuń jednym kliknięciem
+- 💾 Flota, motyw, dziennik aktywności i dane jednostek zapisywane w `localStorage`
+- 🔄 Automatyczne odświeżanie co 5 minut; pozycje odświeżane na żywo
 
-### Mapy
-- **Śledzenie na żywo** — dokładna pozycja AIS i 24-godzinna trasa wybranej jednostki
-- **Widok floty** — wszystkie śledzone jednostki na jednej mapie:
-  - znaczniki obrócone zgodnie z **kursem** i pokolorowane wg statusu
-  - koła pokazujące niepewność pozycji (~1°) darmowego kanału AIS
-  - grupowanie znaczników (clustering) dla dużych flot
-  - przełączanie między warstwami bazowymi **ulice** i **satelita** (Esri) lub nałożenie **map nawigacyjnych** (OpenSeaMap) — kontrolka warstw na mapie
-  - **Trasa prędkości** — koloruje zarejestrowaną trasę każdej jednostki wg prędkości (zielony = wolno → czerwony = szybko)
-  - **Narzędzie pomiaru** — klikaj, aby zmierzyć odległości ortodromiczne w milach morskich
-- **Trasa przewidywana** — przełącznik pokazujący przewidywaną pozycję poruszających się jednostek (6/12/24 h) na podstawie kursu i prędkości, rysowany jako linia przerywana z zaznaczoną pozycją po 24 h
+### 🗺️ Mapy
+- 📍 <span style="color:#2fa8ff">**Śledzenie na żywo**</span> — dokładna pozycja AIS i 24-godzinna trasa wybranej jednostki
+- 🧭 <span style="color:#2fa8ff">**Widok floty**</span> — wszystkie śledzone jednostki na jednej mapie:
+  - 🚤 znaczniki obrócone zgodnie z **kursem** i pokolorowane wg statusu
+  - ⭕ koła pokazujące niepewność pozycji (~1°) darmowego kanału AIS
+  - 📦 grupowanie znaczników (clustering) dla dużych flot
+  - 🗃️ przełączanie między warstwami bazowymi **ulice** i **satelita** (Esri) lub nałożenie **map nawigacyjnych** (OpenSeaMap) — kontrolka warstw na mapie
+  - 📈 <span style="color:#19d3a5">**Trasa prędkości**</span> — koloruje zarejestrowaną trasę każdej jednostki wg prędkości (zielony = wolno → czerwony = szybko)
+  - 📏 <span style="color:#19d3a5">**Narzędzie pomiaru**</span> — klikaj, aby zmierzyć odległości ortodromiczne w milach morskich
+  - 💨 <span style="color:#2fa8ff">**Warstwa przepływu**</span> — animowane cząsteczki wiatru lub prądu morskiego z siatki Open-Meteo dla bieżącego widoku mapy
+  - 🟥 <span style="color:#ff5d5d">**Strefy alertów**</span> — narysuj strefę na mapie; otrzymasz powiadomienie i wpis na osi czasu, gdy śledzona jednostka do niej wpłynie
+- 👻 <span style="color:#f0b429">**Trasa przewidywana**</span> — przełącznik pokazujący przewidywaną pozycję poruszających się jednostek (6/12/24 h) na podstawie kursu i prędkości, rysowany jako linia przerywana z zaznaczoną pozycją po 24 h
 
-### Wizualizacja floty
-- **Pasek statystyk** — liczba śledzonych, w drodze, na kotwicy, średnia prędkość
-- **Tabela floty** — sortowalna tabela (nazwa, typ, status, SOG, COG, cel, ETA, ostatnia aktualizacja) z kropkami statusu, miniaturami i **wykresami prędkości** (kolumna Trend); kliknij wiersz, aby zaznaczyć
-- **Porównanie floty** — wybierz dwie jednostki i porównaj 15 parametrów oraz statystyki na żywo obok siebie
-- **Oś czasu aktywności** — rejestruje zmiany statusu nawigacji, prędkości i celu obserwowane przez aplikację
+### 📊 Wizualizacja floty
+- 📋 **Pasek statystyk** — liczba śledzonych, w drodze, na kotwicy, średnia prędkość
+- 🧮 **Tabela floty** — sortowalna tabela (nazwa, typ, status, SOG, COG, cel, ETA, ostatnia aktualizacja) z kropkami statusu, miniaturami i **wykresami prędkości** (kolumna Trend); kliknij wiersz, aby zaznaczyć
+- ⚖️ **Porównanie floty** — wybierz dwie jednostki i porównaj 15 parametrów oraz statystyki na żywo obok siebie
+- 🕒 **Oś czasu aktywności** — rejestruje zmiany statusu nawigacji, prędkości i celu obserwowane przez aplikację
 
-### Unikalne funkcje
-- **Inteligencja rejsu** — odliczanie do ETA na żywo, kontrola zgodności z kursem (kurs vs namiar na cel), odległość do celu i pasek postępu rejsu ATD→ETA
-- **Stan morza** — fale (wysokość/okres/kierunek), temperatura morza i prądy oceaniczne z Open-Meteo Marine API
-- **Analiza zachowania** — % czasu na kotwicy vs w drodze, przebyty dystans, średnia/maks. prędkość, najdłuższa kotwica, przybycia/odejścia — obliczane z historii obserwacji tej aplikacji
-- **Odtwarzanie trasy** — animowane odtwarzanie zarejestrowanych pozycji floty na mapie z kontrolą odtwarzania i prędkości
-- **Historia rejsu** — dziennik podróży jednostki (ostatni port → obserwowane zmiany celu → obecny cel)
-- **Alerty zbliżeń** — powiadomienia przeglądarki i zdarzenia na osi czasu, gdy dwie śledzone jednostki zbliżą się na zadaną odległość (5/10/25/50 nm), z chipami bieżących spotkań
-- **Atmosfera na pokładzie** — lokalny czas jednostki, wschód/zachód słońca na jej pozycji (obliczenia NOAA) i odliczanie „zachód za …"
-- **Pobliskie porty i mariny** — najbliższe duże porty superjachtów dla wybranej jednostki, z odległością, namiarem i ETA przy obecnej prędkości, plus śledzone jednostki w pobliżu najbliższego portu
-- **Pogoda na pozycji** — temperatura, wiatr i porywy na żywo z Open-Meteo
+### ✨ Unikalne funkcje
+- 🧭 <span style="color:#2fa8ff">**Inteligencja rejsu**</span> — odliczanie do ETA na żywo, kontrola zgodności z kursem (kurs vs namiar na cel), odległość do celu i pasek postępu rejsu ATD→ETA
+- 🌊 <span style="color:#2fa8ff">**Stan morza**</span> — fale (wysokość/okres/kierunek), temperatura morza i prądy oceaniczne z Open-Meteo Marine API
+- 📈 <span style="color:#19d3a5">**Analiza zachowania**</span> — % czasu na kotwicy vs w drodze, przebyty dystans, średnia/maks. prędkość, najdłuższa kotwica, przybycia/odejścia — obliczane z historii obserwacji tej aplikacji
+- 🎞️ **Odtwarzanie trasy** — animowane odtwarzanie zarejestrowanych pozycji floty na mapie z kontrolą odtwarzania i prędkości
+- 🧳 **Historia rejsu** — dziennik podróży jednostki (ostatni port → obserwowane zmiany celu → obecny cel)
+- 🔔 <span style="color:#f0b429">**Alerty zbliżeń**</span> — powiadomienia przeglądarki i zdarzenia na osi czasu, gdy dwie śledzone jednostki zbliżą się na zadaną odległość (5/10/25/50 nm), z chipami bieżących spotkań
+- 🌘 <span style="color:#ff5d5d">**Wykrywanie „ciemnej floty”**</span> — oznacza jednostki, których raport AIS ucichnie (>1 h) lub zniknie (>24 h); loguje i powiadamia o ciszy oraz o powrocie sygnału, z czerwoną/bursztynową statystyką „Ciemna”, znacznikiem w tabeli i odznaką na karcie
+- 🛏️ **Atmosfera na pokładzie** — lokalny czas jednostki, wschód/zachód słońca na jej pozycji (obliczenia NOAA) i odliczanie „zachód za …"
+- 📍 **Pobliskie porty i mariny** — najbliższe duże porty superjachtów dla wybranej jednostki, z odległością, namiarem i ETA przy obecnej prędkości, plus śledzone jednostki w pobliżu najbliższego portu
+- 🌡️ **Pogoda na pozycji** — temperatura, wiatr i porywy na żywo z Open-Meteo
 
-### Udostępnianie i centrum dowodzenia
-- **Link udostępniania floty** — bieżąca flota zakodowana w adresie URL (`?fleet=…`), więc każdy może otworzyć tę samą flotę jednym kliknięciem
-- **Radar floty** — widok radarowy w stylu centrum dowodzenia, wyśrodkowany na wybranej jednostce, z pulsującymi punktami w kolorach statusu i obracającym się promieniem
+### 📤 Udostępnianie i centrum dowodzenia
+- 🔗 **Link udostępniania floty** — bieżąca flota zakodowana w adresie URL (`?fleet=…`), więc każdy może otworzyć tę samą flotę jednym kliknięciem
+- 📡 <span style="color:#19d3a5">**Radar floty**</span> — widok radarowy w stylu centrum dowodzenia, wyśrodkowany na wybranej jednostce, z pulsującymi punktami w kolorach statusu i obracającym się promieniem
 
-### Motywy i języki
+### 🎨 Motywy i języki
 Cztery przełączalne motywy kolorystyczne (Midnight, Daylight, Emerald, Sunset) z menu w górnym pasku, plus przełącznik języka **English, Polski i Italiano** — oba wybory zapamiętywane między wizytami.
 
 ---

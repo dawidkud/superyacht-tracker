@@ -1,7 +1,13 @@
-# Superyacht Tracker <img width="40" height="40" alt="image" src="https://github.com/user-attachments/assets/145a43f1-0de5-4070-a60f-6a2f55993402" />
-
+# 🛥️ Superyacht Tracker <img width="40" height="40" alt="image" src="https://github.com/user-attachments/assets/145a43f1-0de5-4070-a60f-6a2f55993402" />
 
 **English** · [Polski](README.pl.md) · [Italiano](README.it.md)
+
+<p align="left">
+  <span style="color:#2fa8ff;font-weight:600">🛰️ Live AIS</span>&nbsp;·&nbsp;
+  <span style="color:#19d3a5;font-weight:600">🗺️ Fleet maps</span>&nbsp;·&nbsp;
+  <span style="color:#f0b429;font-weight:600">🌬️ Flow layer</span>&nbsp;·&nbsp;
+  <span style="color:#ff5d5d;font-weight:600">🔔 Zones &amp; dark-fleet alerts</span>
+</p>
 
 Vibe coded in OpenCode
 
@@ -13,45 +19,48 @@ Live demo: **https://superyacht-tracker.onrender.com**
 
 ## Features
 
-### Vessel tracking
-- Add any vessel by its 7-digit IMO number (e.g. `9682875`, `9811000`)
-- Tracked-fleet strip with photo cards — click to focus, remove with one click
-- Fleet, theme, activity log and per-vessel data persist in `localStorage`
-- Auto-refreshes every 5 minutes; positions refresh live
+### 🔵 Vessel tracking
+- 🚢 Add any vessel by its 7-digit IMO number (e.g. `9682875`, `9811000`)
+- 🗂️ Tracked-fleet strip with photo cards — click to focus, remove with one click
+- 💾 Fleet, theme, activity log and per-vessel data persist in `localStorage`
+- 🔄 Auto-refreshes every 5 minutes; positions refresh live
 
-### Maps
-- **Live track** — precise AIS position and 24-hour track of the selected vessel
-- **Fleet view** — all tracked vessels on one map:
-  - boat markers rotated to **heading** and colour-coded by status
-  - circles showing the ~1° position uncertainty of the free AIS feed
-  - marker clustering for large fleets
-  - switch between **street** and **satellite** (Esri) base layers, or overlay **nautical charts** (OpenSeaMap), with the layer control on the map
-  - **Speed track** — colour-codes each vessel's recorded trail by speed (green = slow → red = fast)
-  - **Measure tool** — click-to-measure great-circle distances in nautical miles
-- **Ghost track** — toggle to project each moving vessel's future position (6/12/24 h) from its course and speed, drawn as a dashed path with the projected 24 h position marked
+### 🗺️ Maps
+- 📍 <span style="color:#2fa8ff">**Live track**</span> — precise AIS position and 24-hour track of the selected vessel
+- 🧭 <span style="color:#2fa8ff">**Fleet view**</span> — all tracked vessels on one map:
+  - 🚤 boat markers rotated to **heading** and colour-coded by status
+  - ⭕ circles showing the ~1° position uncertainty of the free AIS feed
+  - 📦 marker clustering for large fleets
+  - 🗃️ switch between **street** and **satellite** (Esri) base layers, or overlay **nautical charts** (OpenSeaMap), with the layer control on the map
+  - 📈 <span style="color:#19d3a5">**Speed track**</span> — colour-codes each vessel's recorded trail by speed (green = slow → red = fast)
+  - 📏 <span style="color:#19d3a5">**Measure tool**</span> — click-to-measure great-circle distances in nautical miles
+  - 💨 <span style="color:#2fa8ff">**Flow layer**</span> — animated wind or sea-current particle overlay fed from an Open-Meteo grid over the current map view
+  - 🟥 <span style="color:#ff5d5d">**Alert zones**</span> — draw a geofenced circle on the map; get notified and logged when a tracked vessel enters it
+- 👻 <span style="color:#f0b429">**Ghost track**</span> — toggle to project each moving vessel's future position (6/12/24 h) from its course and speed, drawn as a dashed path with the projected 24 h position marked
 
-### Fleet-wide visualization
-- **Stats bar** — tracked count, under way, at anchor, average speed
-- **Fleet board** — sortable table (name, type, status, SOG, COG, destination, ETA, last update) with status dots, thumbnails and **speed sparklines** (Trend column); click a row to focus
-- **Fleet comparison** — pick two vessels and compare 15 specs & live stats side by side
-- **Activity timeline** — records nav-status, speed and destination changes as the app watches each vessel
+### 📊 Fleet-wide visualization
+- 📋 **Stats bar** — tracked count, under way, at anchor, average speed
+- 🧮 **Fleet board** — sortable table (name, type, status, SOG, COG, destination, ETA, last update) with status dots, thumbnails and **speed sparklines** (Trend column); click a row to focus
+- ⚖️ **Fleet comparison** — pick two vessels and compare 15 specs & live stats side by side
+- 🕒 **Activity timeline** — records nav-status, speed and destination changes as the app watches each vessel
 
-### Unique features
-- **Voyage intelligence** — live "arrives in …" countdown, on-course check (heading vs bearing to destination), distance to destination, and an ATD→ETA voyage progress bar
-- **Sea-state panel** — waves (height/period/direction), sea temperature and ocean current via Open-Meteo Marine API
-- **Behavioral insights** — per-vessel % time at anchor vs under way, distance covered, average/top speed, longest anchor, arrivals/departures — computed from this app's own observation history
-- **Track replay** — animated playback of the fleet's recorded positions on a map, with play/pause and speed controls
-- **Voyage history** — per-vessel journey log (last port → observed destination changes → current destination)
-- **Proximity alerts** — browser notifications and timeline events when two tracked vessels come within a set distance (5/10/25/50 nm), with live encounter chips
-- **Aboard ambient** — live local time at the vessel, sunrise/sunset at its position (NOAA solar calc), and a "sunset in …" countdown
-- **Nearby Ports & Marinas** — the closest major superyacht ports to the selected vessel, with distance, bearing and ETA at current speed, plus tracked vessels near the nearest port
-- **Weather at position** — live temperature, wind and gusts via Open-Meteo
+### ✨ Unique features
+- 🧭 <span style="color:#2fa8ff">**Voyage intelligence**</span> — live "arrives in …" countdown, on-course check (heading vs bearing to destination), distance to destination, and an ATD→ETA voyage progress bar
+- 🌊 <span style="color:#2fa8ff">**Sea-state panel**</span> — waves (height/period/direction), sea temperature and ocean current via Open-Meteo Marine API
+- 📈 <span style="color:#19d3a5">**Behavioral insights**</span> — per-vessel % time at anchor vs under way, distance covered, average/top speed, longest anchor, arrivals/departures — computed from this app's own observation history
+- 🎞️ **Track replay** — animated playback of the fleet's recorded positions on a map, with play/pause and speed controls
+- 🧳 **Voyage history** — per-vessel journey log (last port → observed destination changes → current destination)
+- 🔔 <span style="color:#f0b429">**Proximity alerts**</span> — browser notifications and timeline events when two tracked vessels come within a set distance (5/10/25/50 nm), with live encounter chips
+- 🌘 <span style="color:#ff5d5d">**Dark-fleet detection**</span> — flags vessels whose AIS report goes quiet (>1 h) or dark (>24 h); logs and notifies on silence and when they report again, with a red/amber "Dark" stat chip, board tag and fleet-card badge
+- 🛏️ **Aboard ambient** — live local time at the vessel, sunrise/sunset at its position (NOAA solar calc), and a "sunset in …" countdown
+- 📍 **Nearby Ports & Marinas** — the closest major superyacht ports to the selected vessel, with distance, bearing and ETA, plus tracked vessels near the nearest port
+- 🌡️ **Weather at position** — live temperature, wind and gusts via Open-Meteo
 
-### Sharing & command center
-- **Shareable fleet link** — the current fleet is encoded in the URL (`?fleet=…`), so anyone can open the same fleet with one click
-- **Fleet radar** — a command-center radar view centred on the selected vessel, with pulsing, status-coloured blips and a rotating sweep
+### 📤 Sharing & command center
+- 🔗 **Shareable fleet link** — the current fleet is encoded in the URL (`?fleet=…`), so anyone can open the same fleet with one click
+- 📡 <span style="color:#19d3a5">**Fleet radar**</span> — a command-center radar view centred on the selected vessel, with pulsing, status-coloured blips and rotating sweep
 
-### Themes & languages
+### 🎨 Themes & languages
 Four switchable colour themes (Midnight, Daylight, Emerald, Sunset) via the top-bar dropdown, plus a language switch for **English, Polski and Italiano** — both persisted between visits.
 
 ---
@@ -67,7 +76,8 @@ Four switchable colour themes (Midnight, Daylight, Emerald, Sunset) via the top-
 | Fleet map | Leaflet + OpenStreetMap tiles (streets) + Esri World Imagery (satellite) + OpenSeaMap (charts overlay) + marker clustering |
 | Live track | VesselFinder AIS embed |
 | **Real-time positions (optional)** | [aisstream.io](https://aisstream.io/) WebSocket feed — precise, live AIS when an `AIS_STREAM_KEY` is set |
-| Weather | Open-Meteo |
+| Weather | Open-Meteo (current + Marine API) |
+| Flow layer | Open-Meteo grid API (multi-location wind / sea-current) |
 | Geocoding | OpenStreetMap Nominatim |
 
 ---

@@ -158,8 +158,22 @@
           </label>
           <button class="mini-btn" id="measure-btn" data-i18n="📏 Measure">📏 Measure</button>
           <button class="mini-btn" id="measure-clear" data-i18n="✕ Clear">✕ Clear</button>
+          <button class="mini-btn" id="flow-btn" data-i18n-title="Animated wind / sea-current particles from the Open-Meteo grid">💨 Flow</button>
+          <select id="flow-src" class="mini-select" aria-label="Flow field" title="Flow field">
+            <option value="wind" data-i18n="Wind">Wind</option>
+            <option value="sea" data-i18n="Sea current">Sea current</option>
+          </select>
+          <button class="mini-btn" id="zone-btn" data-i18n="⭕ Zone">⭕ Zone</button>
           <span class="dim" id="measure-info"></span>
+          <span class="dim" id="zone-hint"></span>
+          <span class="dim" id="flow-note"></span>
           <span class="speed-legend hidden" id="speed-legend"></span>
+          <span class="flow-legend hidden" id="flow-legend">
+            <span class="sl-label">slow</span>
+            <span class="sl-bar flow-bar"></span>
+            <span class="sl-label">fast</span>
+          </span>
+          <span class="zone-chips hidden" id="zone-chips"></span>
         </div>
         <div id="fleetmap"></div>
         <p class="map-note" data-i18n="Fleet overview — boat markers are rotated to heading and colour-coded by status; circles show the ~1° position uncertainty of the free AIS feed. Use Live track for the precise track of a selected vessel. Switch street / satellite base layers and nautical charts with the control on the map.">Fleet overview — boat markers are rotated to heading and colour-coded by status; circles show the ~1° position uncertainty of the free AIS feed. Use <em>Live track</em> for the precise track of a selected vessel. Switch street / satellite base layers and nautical charts with the control on the map.</p>

@@ -7,7 +7,15 @@
 
 const $ = (id) => document.getElementById(id);
 
-const VERSION = "1.2.0";
+const VERSION = "1.3.0";
+
+/* storage keys — declared before `state` so the loaders below run cleanly */
+const K_IMOS = "tracker_imos";
+const K_SELECTED = "tracker_selected";
+const K_DARK_SEEN = "tracker_dark_seen";
+const K_ZONES = "tracker_zones";
+const K_FLOW_SRC = "tracker_flow_src";
+const SETTINGS_KEY = "tracker_settings";
 
 const state = {
   vessels: [], // [{ imo, ...vessel }]
@@ -24,6 +32,12 @@ const state = {
   speedTrackOn: localStorage.getItem("tracker_speedtrack") === "1",
   settings: loadSettings(),
   proxAlerted: {},
+  darkSeen: loadDarkSeen(),
+  zones: loadZones(),
+  zoneAlerted: {},
+  zoneDraw: { active: false, center: null, preview: null, centerMarker: null },
+  zoneLayers: [],
+  flow: { on: false, src: loadFlowSrc(), grid: null, canvas: null, ctx: null, raf: 0, parts: [], maxSpd: 1, busy: false },
   compareMode: false,
   compareSel: [], // max 2 imos
   measure: { active: false, points: [], line: null, markers: [], total: 0 },
@@ -52,8 +66,6 @@ function applyTheme(id) {
 
 /* ---------------- persistence ---------------- */
 
-const K_IMOS = "tracker_imos";
-const K_SELECTED = "tracker_selected";
 const dataKey = (imo) => "tracker_data_" + imo;
 
 function loadIMOs() {
@@ -339,6 +351,8 @@ function renderStats() {
     { label: t("At anchor"), value: r, dot: "amber" },
     { label: t("Avg SOG"), value: avg, dot: "blue" },
   ];
+  const dark = vs.filter((v) => darkLevel(v) >= 1).length;
+  if (dark) chips.push({ label: t("Dark"), value: dark, dot: "red" });
   if (state.liveStatus === "connected")
     chips.push({ label: t("LIVE AIS"), value: "●", dot: "green", live: true });
   bar.innerHTML = chips
@@ -509,7 +523,14 @@ function renderBoard() {
         '<td class="tnum">' + cog + "°</td>" +
         "<td>" + escapeHtml(v.destination || "—") + "</td>" +
         "<td>" + escapeHtml(v.eta || "—") + "</td>" +
-        "<td>" + relativeTime(lastSeenDate(v)) + "</td>" +
+        (function () {
+          const dl = darkLevel(v);
+          return dl
+            ? '<td><span class="dark-tag ' + (dl === 2 ? "dark" : "quiet") + '" title="' +
+                tF("Signal dark — no AIS report in {h} h", { h: quietHours(v) }) + '">' +
+                (dl === 2 ? "🌑" : "🌗") + "</span> " + relativeTime(lastSeenDate(v)) + "</td>"
+            : "<td>" + relativeTime(lastSeenDate(v)) + "</td>";
+        })() +
         "</tr>"
       );
     })
@@ -831,7 +852,6 @@ function updateAboard(v) {
 
 /* ---------------- proximity alerts ---------------- */
 
-const SETTINGS_KEY = "tracker_settings";
 const PROX_ALERT_KEY = "tracker_prox_alerts";
 
 function loadSettings() {
@@ -894,7 +914,126 @@ function checkProximity() {
     .join("");
 }
 
-/* ---------------- ghost track ---------------- */
+/* ---------------- dark fleet / AIS-silence detection ---------------- */
+
+const DARK_QUIET_MS = 60 * 60 * 1000; /* 1 h without an AIS report → "quiet" */
+const DARK_OUT_MS = 24 * 60 * 60 * 1000; /* 24 h → "dark" */
+
+function loadDarkSeen() {
+  try {
+    return JSON.parse(localStorage.getItem(K_DARK_SEEN)) || {};
+  } catch (_) {
+    return {};
+  }
+}
+function saveDarkSeen() {
+  localStorage.setItem(K_DARK_SEEN, JSON.stringify(state.darkSeen));
+}
+
+/* 0 = reporting, 1 = quiet, 2 = dark */
+function darkLevel(v) {
+  const d = lastSeenDate(v);
+  if (!d) return 0;
+  const age = Date.now() - d.getTime();
+  if (age > DARK_OUT_MS) return 2;
+  if (age > DARK_QUIET_MS) return 1;
+  return 0;
+}
+function quietHours(v) {
+  const d = lastSeenDate(v);
+  if (!d) return 0;
+  return Math.max(1, Math.round((Date.now() - d.getTime()) / 3600000));
+}
+
+function checkDarkFleet() {
+  for (const v of state.vessels) {
+    const lvl = darkLevel(v);
+    const prev = state.darkSeen[v.imo];
+    if (prev === undefined) {
+      /* first observation — record the baseline so we only alert on changes */
+      state.darkSeen[v.imo] = v.lastSeen ? lvl : 0;
+      continue;
+    }
+    if (lvl > prev && lvl >= 1) {
+      const text =
+        lvl === 2
+          ? tF("{name} has gone dark — no AIS update in {h} h", { name: v.name, h: quietHours(v) })
+          : tF("{name} has gone quiet — no AIS update in {h} h", { name: v.name, h: quietHours(v) });
+      logEvent(v.imo, v.name, text);
+      if (state.settings.notifOn) notify(text);
+    } else if (lvl === 0 && prev > 0) {
+      const text = tF("{name} has reported a position again", { name: v.name });
+      logEvent(v.imo, v.name, text);
+      if (state.settings.notifOn) notify(text);
+    }
+    state.darkSeen[v.imo] = lvl;
+  }
+  saveDarkSeen();
+}
+
+/* ---------------- geofenced alert zones ---------------- */
+
+const ZONE_ALERT_COOLDOWN = 60 * 60 * 1000; /* per zone × vessel */
+
+function loadZones() {
+  try {
+    const a = JSON.parse(localStorage.getItem(K_ZONES));
+    return Array.isArray(a) ? a : [];
+  } catch (_) {
+    return [];
+  }
+}
+function saveZones() {
+  localStorage.setItem(K_ZONES, JSON.stringify(state.zones));
+}
+
+function checkZones() {
+  if (!state.zones.length) return;
+  const vs = state.vessels.filter((v) => v.position && v.position.lat != null && v.position.lon != null);
+  for (const z of state.zones) {
+    for (const v of vs) {
+      if (haversine(z.lat, z.lon, v.position.lat, v.position.lon) > z.radius) continue;
+      const key = z.id + "-" + v.imo;
+      const last = (state.zoneAlerted && state.zoneAlerted[key]) || 0;
+      if (Date.now() - last > ZONE_ALERT_COOLDOWN) {
+        if (!state.zoneAlerted) state.zoneAlerted = {};
+        state.zoneAlerted[key] = Date.now();
+        const text = tF("{name} entered the {zone} zone", { name: v.name, zone: z.name });
+        logEvent(v.imo, v.name, text);
+        if (state.settings.notifOn) notify(text);
+      }
+    }
+  }
+  renderZoneChips();
+}
+
+function renderZoneChips() {
+  const el = $("zone-chips");
+  if (!el) return;
+  el.innerHTML = state.zones
+    .map((z) => {
+      const inside = zoneVesselsIn(z);
+      const n = inside.length;
+      const names = inside.map((v) => escapeHtml(v.name)).join(", ");
+      const title = n ? names : "";
+      return (
+        '<span class="enc-chip zone-chip' + (n ? " hot" : "") + '" title="' + title + '">' +
+        "⭕ " + escapeHtml(z.name) + " · " + z.radius.toFixed(0) + " nm" + (n ? " · " + n + " in" : "") +
+        "</span>"
+      );
+    })
+    .join("");
+  el.classList.toggle("hidden", !state.zones.length);
+}
+function zoneVesselsIn(z) {
+  return state.vessels.filter(
+    (v) =>
+      v.position &&
+      v.position.lat != null &&
+      v.position.lon != null &&
+      haversine(z.lat, z.lon, v.position.lat, v.position.lon) <= z.radius
+  );
+}
 
 function renderGhostToggle() {
   const t = $("ghost-toggle");
@@ -985,6 +1124,424 @@ $("speed-track-toggle").addEventListener("change", (e) => {
   localStorage.setItem("tracker_speedtrack", state.speedTrackOn ? "1" : "0");
   renderFleetMap();
 });
+
+/* ---------------- geofenced zone drawing ---------------- */
+
+function toggleZoneDraw() {
+  state.zoneDraw.active = !state.zoneDraw.active;
+  if (!state.fleetMap) renderFleetMap();
+  if (state.fleetMap) {
+    if (state.zoneDraw.active) {
+      state.fleetMap.doubleClickZoom.disable();
+      state.fleetMap.getContainer().style.cursor = "crosshair";
+    } else {
+      state.fleetMap.doubleClickZoom.enable();
+      state.fleetMap.getContainer().style.cursor = "";
+      cancelZoneDraw();
+    }
+  }
+  renderZoneDrawUI();
+}
+
+function cancelZoneDraw() {
+  const z = state.zoneDraw;
+  if (!state.fleetMap) return;
+  if (z.centerMarker) {
+    state.fleetMap.removeLayer(z.centerMarker);
+    z.centerMarker = null;
+  }
+  if (z.preview) {
+    state.fleetMap.removeLayer(z.preview);
+    z.preview = null;
+  }
+  z.center = null;
+}
+
+function onZoneClick(latlng) {
+  const z = state.zoneDraw;
+  if (!z.center) {
+    z.center = { lat: latlng.lat, lon: latlng.lng };
+    z.centerMarker = L.circleMarker([z.center.lat, z.center.lon], {
+      radius: 6,
+      color: "#ffffff",
+      weight: 1.5,
+      fillColor: "#ff5d5d",
+      fillOpacity: 1,
+      interactive: false,
+    }).addTo(state.fleetMap);
+    updateZonePreview(latlng);
+  } else {
+    finalizeZone(latlng);
+  }
+}
+
+function updateZonePreview(latlng) {
+  const z = state.zoneDraw;
+  if (!z.center) return;
+  const d = haversine(z.center.lat, z.center.lon, latlng.lat, latlng.lng);
+  if (z.preview) state.fleetMap.removeLayer(z.preview);
+  z.preview = L.circle([z.center.lat, z.center.lon], {
+    radius: Math.max(100, d * 1852),
+    color: "#ff5d5d",
+    weight: 2,
+    dashArray: "6 6",
+    fillColor: "#ff5d5d",
+    fillOpacity: 0.08,
+    interactive: false,
+  }).addTo(state.fleetMap);
+  const hint = $("zone-hint");
+  if (hint) hint.textContent = t("Click to set the radius…") + (d >= 0.1 ? " " + d.toFixed(1) + " nm" : "");
+}
+
+function finalizeZone(latlng) {
+  const z = state.zoneDraw;
+  if (!z.center) return;
+  const d = haversine(z.center.lat, z.center.lon, latlng.lat, latlng.lng);
+  const center = z.center;
+  cancelZoneDraw();
+  if (d < 0.1) return;
+  addZone(center.lat, center.lon, d);
+  toggleZoneDraw();
+}
+
+function addZone(lat, lon, radiusNm) {
+  const z = {
+    id: "z" + Date.now(),
+    lat: +lat.toFixed(4),
+    lon: +lon.toFixed(4),
+    radius: +radiusNm.toFixed(1),
+    name: tF("Zone {n}", { n: state.zones.length + 1 }),
+  };
+  state.zones.push(z);
+  saveZones();
+  renderZoneChips();
+  renderZoneDrawUI();
+  drawZoneLayers();
+  checkZones();
+  flash(tF("Zone {name} added", { name: z.name }));
+}
+
+function removeZone(id) {
+  state.zones = state.zones.filter((z) => z.id !== id);
+  saveZones();
+  renderZoneChips();
+  renderZoneDrawUI();
+  drawZoneLayers();
+  flash(t("Zone removed"));
+}
+
+function zonePopup(z) {
+  const inside = zoneVesselsIn(z);
+  const vhtml = inside.length
+    ? "<br>" + t("Vessels inside") + ": " + inside.map((v) => escapeHtml(v.name)).join(", ")
+    : "";
+  return (
+    "<strong>⭕ " + escapeHtml(z.name) + "</strong><br>" +
+    tF("Zone radius {r} nm", { r: z.radius.toFixed(0) }) +
+    vhtml +
+    '<br><button class="leaflet-select zone-remove" data-zone="' + z.id + '">' + t("Remove zone") + "</button>"
+  );
+}
+
+function drawZoneLayers() {
+  if (!state.fleetMap) return;
+  if (state.zoneLayers) state.zoneLayers.forEach((l) => state.fleetMap.removeLayer(l));
+  state.zoneLayers = [];
+  for (const z of state.zones) {
+    const popup = zonePopup(z);
+    const circle = L.circle([z.lat, z.lon], {
+      radius: z.radius * 1852,
+      color: "#ff5d5d",
+      weight: 2,
+      dashArray: "6 6",
+      fillColor: "#ff5d5d",
+      fillOpacity: 0.08,
+    }).bindPopup(popup);
+    circle.addTo(state.fleetMap);
+    const lab = L.marker([z.lat, z.lon], {
+      icon: L.divIcon({ className: "", html: '<div class="zone-label">' + escapeHtml(z.name) + "</div>" }),
+      keyboard: false,
+    }).bindPopup(popup);
+    lab.addTo(state.fleetMap);
+    state.zoneLayers.push(circle, lab);
+  }
+}
+
+function renderZoneDrawUI() {
+  const btn = $("zone-btn");
+  if (btn) {
+    btn.classList.toggle("on", state.zoneDraw.active);
+    btn.textContent = state.zoneDraw.active ? t("⭕ Cancel") : t("⭕ Zone");
+  }
+  const hint = $("zone-hint");
+  if (hint) hint.textContent = state.zoneDraw.active ? t("Click to place the centre — click again to set the radius.") : "";
+}
+
+$("zone-btn").addEventListener("click", toggleZoneDraw);
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".zone-remove");
+  if (btn) removeZone(btn.getAttribute("data-zone"));
+});
+
+/* ---------------- wind / sea-current particle layer (Open-Meteo grid) ---------------- */
+
+function loadFlowSrc() {
+  return localStorage.getItem(K_FLOW_SRC) === "sea" ? "sea" : "wind";
+}
+function saveFlowSrc() {
+  localStorage.setItem(K_FLOW_SRC, state.flow.src);
+}
+function clamp(v, lo, hi) {
+  return Math.max(lo, Math.min(hi, v));
+}
+
+function toggleFlow() {
+  state.flow.on = !state.flow.on;
+  if (state.flow.on) {
+    if (state.fleetMap) {
+      ensureFlowPane();
+      syncFlowCanvas();
+      loadFlowGrid();
+    } else {
+      renderFleetMap();
+    }
+  } else {
+    stopFlowLoop();
+    if (state.flow.canvas && state.flow.ctx) state.flow.ctx.clearRect(0, 0, state.flow.canvas.width, state.flow.canvas.height);
+  }
+  renderFlowUI();
+}
+
+function renderFlowUI() {
+  const btn = $("flow-btn");
+  if (btn) {
+    btn.classList.toggle("on", state.flow.on);
+    btn.textContent = state.flow.on
+      ? (state.flow.src === "sea" ? t("🌊 Flow on") : t("💨 Flow on"))
+      : (state.flow.src === "sea" ? t("🌊 Flow") : t("💨 Flow"));
+  }
+  const sel = $("flow-src");
+  if (sel) sel.value = state.flow.src;
+  const leg = $("flow-legend");
+  if (leg) leg.classList.toggle("hidden", !state.flow.on);
+  const note = $("flow-note");
+  if (note) note.textContent = state.flow.on ? state.flow.note : "";
+}
+
+$("flow-btn").addEventListener("click", toggleFlow);
+$("flow-src").addEventListener("change", (e) => {
+  state.flow.src = e.target.value === "sea" ? "sea" : "wind";
+  saveFlowSrc();
+  renderFlowUI();
+  if (state.flow.on) loadFlowGrid();
+});
+
+function ensureFlowPane() {
+  if (!state.fleetMap) return;
+  if (!state.flowPane) {
+    state.flowPane = state.fleetMap.createPane("flow");
+    state.flowPane.style.pointerEvents = "none";
+    state.flowPane.style.zIndex = 450;
+  }
+  if (!state.flow.canvas) {
+    state.flow.canvas = document.createElement("canvas");
+    state.flow.canvas.className = "flow-canvas";
+    state.flowPane.appendChild(state.flow.canvas);
+  }
+  state.flow.ctx = state.flow.canvas.getContext("2d");
+}
+
+function syncFlowCanvas() {
+  if (!state.fleetMap || !state.flow.canvas) return;
+  const size = state.fleetMap.getSize();
+  state.flow.canvas.width = Math.round(size.x);
+  state.flow.canvas.height = Math.round(size.y);
+}
+
+function flowGridDims() {
+  const b = state.fleetMap.getBounds();
+  const size = state.fleetMap.getSize();
+  const lonSpan = Math.max(b.getEast() - b.getWest(), 0.2);
+  const latSpan = Math.max(b.getNorth() - b.getSouth(), 0.2);
+  const cols = clamp(Math.round(size.x / 90), 2, 10);
+  const rows = clamp(Math.round(size.y / 90), 2, 7);
+  return { cols, rows, top: b.getNorth(), left: b.getWest(), lonStep: lonSpan / cols, latStep: latSpan / rows };
+}
+
+async function loadFlowGrid() {
+  if (!state.flow.on || !state.fleetMap) return;
+  if (state.flow.busy) return;
+  state.flow.busy = true;
+  state.flow.note = t("Loading wind grid…");
+  renderFlowUI();
+  const token = ++state.flow.token;
+  try {
+    const d = flowGridDims();
+    const lat = [];
+    const lon = [];
+    for (let r = 0; r <= d.rows; r++) {
+      const la = +(d.top - r * d.latStep).toFixed(4);
+      for (let c = 0; c <= d.cols; c++) {
+        lat.push(la);
+        lon.push(+(d.left + c * d.lonStep).toFixed(4));
+      }
+    }
+    const url =
+      state.flow.src === "sea"
+        ? "https://marine-api.open-meteo.com/v1/marine?latitude=" + lat.join(",") + "&longitude=" + lon.join(",") +
+          "&current=ocean_current_velocity,ocean_current_direction"
+        : "https://api.open-meteo.com/v1/forecast?latitude=" + lat.join(",") + "&longitude=" + lon.join(",") +
+          "&current=wind_speed_10m,wind_direction_10m&wind_speed_unit=kn";
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("flow request failed");
+    const j = await res.json();
+    if (token !== state.flow.token || !state.flow.on) return;
+    /* Open-Meteo returns one object per requested coordinate */
+    const list = Array.isArray(j) ? j : [j];
+    if (!list.length) throw new Error("bad grid");
+    const isWind = state.flow.src === "wind";
+    let maxSpd = 1;
+    const pts = list.map((it, i) => {
+      const cur = (it && it.current) || {};
+      const speed = isWind ? cur.wind_speed_10m : cur.ocean_current_velocity;
+      const dir = isWind ? cur.wind_direction_10m : cur.ocean_current_direction;
+      const s = speed != null ? speed : 0;
+      if (s > maxSpd) maxSpd = s;
+      return { lat: lat[i], lon: lon[i], speed: s, dir: dir != null ? dir : 0 };
+    });
+    state.flow.grid = {
+      cols: d.cols + 1,
+      rows: d.rows + 1,
+      top: d.top,
+      left: d.left,
+      lonStep: d.lonStep,
+      latStep: d.latStep,
+      maxSpd,
+      pts,
+    };
+    state.flow.maxSpd = maxSpd;
+    state.flow.note = state.flow.src === "sea" ? t("Sea surface current · Open-Meteo") : t("Wind · Open-Meteo");
+    renderFlowUI();
+    rebuildFlowParticles();
+  } catch (err) {
+    if (token === state.flow.token) {
+      state.flow.note = tF("Flow unavailable ({msg})", { msg: err.message });
+      renderFlowUI();
+    }
+  } finally {
+    state.flow.busy = false;
+  }
+}
+
+function sampleFlow(lat, lon) {
+  const g = state.flow.grid;
+  if (!g) return null;
+  const c = clamp(Math.round((lon - g.left) / g.lonStep), 0, g.cols - 1);
+  const r = clamp(Math.round((g.top - lat) / g.latStep), 0, g.rows - 1);
+  const p = g.pts[r * g.cols + c];
+  if (!p) return null;
+  if (state.flow.src === "sea") {
+    const rad = p.dir * (Math.PI / 180);
+    return { east: p.speed * Math.sin(rad), north: p.speed * Math.cos(rad), norm: p.speed / g.maxSpd };
+  }
+  /* wind: direction is where the wind comes FROM, so particles blow toward dir + 180 */
+  const rad = ((p.dir + 180) % 360) * (Math.PI / 180);
+  return { east: p.speed * Math.sin(rad), north: p.speed * Math.cos(rad), norm: p.speed / g.maxSpd };
+}
+
+function rebuildFlowParticles() {
+  if (!state.flow.canvas) return;
+  const w = state.flow.canvas.width;
+  const h = state.flow.canvas.height;
+  const n = clamp(Math.round((w * h) / 9000), 60, 240);
+  const parts = [];
+  for (let i = 0; i < n; i++) parts.push({ x: Math.random() * w, y: Math.random() * h });
+  state.flow.parts = parts;
+  startFlowLoop();
+}
+
+function startFlowLoop() {
+  if (!state.flow.raf) state.flow.raf = requestAnimationFrame(flowTick);
+}
+function stopFlowLoop() {
+  if (state.flow.raf) {
+    cancelAnimationFrame(state.flow.raf);
+    state.flow.raf = 0;
+  }
+  state.flow.parts = [];
+}
+
+function flowColor(norm) {
+  const hue = 210 - norm * 130; /* 210 blue → 80 gold */
+  const a = 0.22 + norm * 0.45;
+  return "hsla(" + hue + ", 85%, 60%, " + a.toFixed(2) + ")";
+}
+
+function flowTick() {
+  state.flow.raf = 0;
+  const mapWrap = $("map-fleet");
+  if (!state.flow.on || !state.fleetMap || !state.flow.canvas || !mapWrap || mapWrap.classList.contains("hidden")) return;
+  const map = state.fleetMap;
+  const cv = state.flow.canvas;
+  const ctx = state.flow.ctx;
+  if (!ctx) return;
+  const w = cv.width;
+  const h = cv.height;
+  if (w === 0 || h === 0) return;
+  ctx.clearRect(0, 0, w, h);
+  if (!state.flow.parts.length) rebuildFlowParticles();
+  const parts = state.flow.parts;
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i];
+    const ll = map.containerPointToLatLng([p.x, p.y]);
+    const fl = state.flow.grid ? sampleFlow(ll.lat, ll.lng) : null;
+    let vx = 0;
+    let vy = 0;
+    let norm = 0.3;
+    if (fl && (Math.abs(fl.east) > 1e-6 || Math.abs(fl.north) > 1e-6)) {
+      const p0 = map.latLngToContainerPoint([ll.lat, ll.lng]);
+      const pN = map.latLngToContainerPoint([ll.lat + 1, ll.lng]);
+      const pE = map.latLngToContainerPoint([ll.lat, ll.lng + 1]);
+      const pxEast = pE.x - p0.x;
+      const pxNorth = p0.y - pN.y; /* north is up */
+      const mag = Math.hypot(fl.east, fl.north) || 1;
+      const ux = fl.east / mag;
+      const un = fl.north / mag;
+      const dirPx = Math.hypot(pxEast * ux, pxNorth * un) || 1;
+      const spdPx = 0.18 + fl.norm * 1.5;
+      vx = ((pxEast * ux) / dirPx) * spdPx;
+      vy = -((pxNorth * un) / dirPx) * spdPx;
+      norm = fl.norm;
+    } else {
+      vx = (Math.random() - 0.5) * 0.15;
+      vy = (Math.random() - 0.5) * 0.15;
+    }
+    p.x += vx;
+    p.y += vy;
+    if (p.x < -20 || p.x > w + 20 || p.y < -20 || p.y > h + 20) {
+      p.x = Math.random() * w;
+      p.y = Math.random() * h;
+    }
+    ctx.strokeStyle = flowColor(norm);
+    ctx.lineWidth = 1.4;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(p.x - vx * 9, p.y - vy * 9);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+  }
+  state.flow.raf = requestAnimationFrame(flowTick);
+}
+
+let flowGridTimer = null;
+function flowGridSoon() {
+  if (!state.flow.on) return;
+  clearTimeout(flowGridTimer);
+  flowGridTimer = setTimeout(() => {
+    syncFlowCanvas();
+    loadFlowGrid();
+  }, 1200);
+}
 
 /* ---------------- measure distance tool ---------------- */
 
@@ -1468,6 +2025,7 @@ const I18N = {
     "Weather and sea state show air temperature, wind, waves, sea temperature and currents near the vessel.": "„Pogoda” pokazuje temperaturę powietrza, wiatr, fale, temperaturę morza i prądy w pobliżu jednostki.",
     "Alerts & radar": "Alerty i radar",
     "Enable Alerts and set a distance to get notified when two tracked vessels come close.": "Włącz „Alerty” i ustaw dystans, aby otrzymać powiadomienie, gdy dwie jednostki się zbliżą.",
+    "Dark-fleet detection flags vessels whose AIS report has gone quiet (over 1 h) or dark (over 24 h), and logs when they report again.": "Wykrywanie „ciemnej floty” oznacza jednostki, których raport AIS ucichł (ponad 1 godz.) lub zniknął (ponad 24 godz.), oraz loguje powrót sygnału.",
     "The Fleet Radar shows every vessel as a blip — bearing and distance from the selected vessel.": "„Radar floty” pokazuje każdą jednostkę jako punkt — namiar i odległość od wybranej jednostki.",
     "Discovery & settings": "Odkrywanie i ustawienia",
     "Discover introduces a new set of famous superyachts every hour — or shuffle them yourself.": "„Odkryj” co godzinę pokazuje nowy zestaw słynnych superjachtów — możesz też je losować.",
@@ -1490,8 +2048,30 @@ const I18N = {
     "Curated list of major superyacht ports; distances are great-circle in nautical miles.": "Ręcznie opracowana lista najważniejszych portów superjachtów; odległości to odległości ortodromiczne w milach morskich.",
     "Speed track colour-codes each vessel's recorded trail by speed — green is slow, red is fast.": "„Trasa prędkości” koloruje zarejestrowaną trasę każdej jednostki wg prędkości — zielony oznacza wolną, czerwony szybką.",
     "The Measure tool computes the distance between clicks on the fleet map.": "Narzędzie „Pomiar” oblicza odległość między kliknięciami na mapie floty.",
+    "The Flow layer animates wind or sea-current particles over the map, fed from an Open-Meteo grid for the current view.": "„Warstwa przepływu” animuje cząsteczki wiatru lub prądu morskiego nad mapą, zasilane siatką Open-Meteo dla bieżącego widoku.",
+    "Alert zones: press ⭕ Zone, click once for the centre and again for the radius — you get notified when a tracked vessel enters the circle.": "Strefy alertów: naciśnij ⭕ Strefa, kliknij raz, aby ustawić środek i ponownie, aby ustawić promień — otrzymasz powiadomienie, gdy jednostka wpłynie do strefy.",
     "Switch the fleet map between street and satellite imagery, or overlay nautical charts, with the layer control on the map.": "Przełączaj mapę floty między widokiem ulic a satelitą lub nałóż mapy nawigacyjne, korzystając z kontrolki warstw na mapie.",
     "Nearby Ports & Marinas lists the closest major ports to the selected vessel — with distance, ETA at current speed and tracked vessels near the nearest port.": "„Pobliskie porty i mariny” pokazują najbliższe duże porty dla wybranej jednostki — z odległością, ETA przy obecnej prędkości i śledzonymi jednostkami w pobliżu najbliższego portu.",
+    "Dark": "Ciemna", "quiet": "cisza", "dark": "ciemna",
+    "Signal dark — no AIS report in {h} h": "Sygnał utracony — brak raportu AIS od {h} godz.",
+    "{name} has gone quiet — no AIS update in {h} h": "{name} zamilkła — brak raportu AIS od {h} godz.",
+    "{name} has gone dark — no AIS update in {h} h": "{name} zniknęła z AIS — brak raportu od {h} godz.",
+    "{name} has reported a position again": "{name} ponownie raportuje pozycję",
+    "💨 Flow": "💨 Przepływ", "🌊 Flow": "🌊 Przepływ",
+    "💨 Flow on": "💨 Przepływ wł.", "🌊 Flow on": "🌊 Przepływ wł.",
+    "⭕ Zone": "⭕ Strefa", "⭕ Cancel": "⭕ Anuluj",
+    "Click to place the centre — click again to set the radius.": "Kliknij, aby ustawić środek — kliknij ponownie, aby ustawić promień.",
+    "Click to set the radius…": "Kliknij, aby ustawić promień…",
+    "Zone {n}": "Strefa {n}", "Zone {name} added": "Dodano strefę {name}",
+    "Zone removed": "Usunięto strefę", "Remove zone": "Usuń strefę",
+    "Zone radius {r} nm": "Promień strefy {r} nm",
+    "Vessels inside": "Jednostki w środku",
+    "{name} entered the {zone} zone": "{name} wpłynęła do strefy {zone}",
+    "Wind": "Wiatr", "Sea current": "Prąd morski",
+    "Loading wind grid…": "Wczytywanie siatki wiatru…",
+    "Wind · Open-Meteo": "Wiatr · Open-Meteo",
+    "Sea surface current · Open-Meteo": "Prąd morski · Open-Meteo",
+    "Flow unavailable ({msg})": "Warstwa przepływu niedostępna ({msg})",
   },
   it: {
     "Map": "Mappa", "Fleet": "Flotta", "Activity": "Attività", "Discover": "Scopri",
@@ -1616,6 +2196,7 @@ const I18N = {
     "Weather and sea state show air temperature, wind, waves, sea temperature and currents near the vessel.": "Meteo e stato del mare mostrano temperatura dell'aria, vento, onde, temperatura del mare e correnti vicino alla nave.",
     "Alerts & radar": "Avvisi e radar",
     "Enable Alerts and set a distance to get notified when two tracked vessels come close.": "Attiva gli „Avvisi” e imposta una distanza per essere avvisato quando due navi si avvicinano.",
+    "Dark-fleet detection flags vessels whose AIS report has gone quiet (over 1 h) or dark (over 24 h), and logs when they report again.": "Il rilevamento della flotta buia segnala le navi il cui report AIS è taciuto (oltre 1 h) o sparito (oltre 24 h), e registra quando tornano a riportare la posizione.",
     "The Fleet Radar shows every vessel as a blip — bearing and distance from the selected vessel.": "Il „Radar flotta” mostra ogni nave come un blip — rilevamento e distanza dalla nave selezionata.",
     "Discovery & settings": "Scoperta e impostazioni",
     "Discover introduces a new set of famous superyachts every hour — or shuffle them yourself.": "„Scopri” presenta un nuovo set di famosi superyacht ogni ora — oppure mescolali tu stesso.",
@@ -1638,8 +2219,30 @@ const I18N = {
     "Curated list of major superyacht ports; distances are great-circle in nautical miles.": "Elenco curato dei principali porti per superyacht; le distanze sono ortodromiche in miglia nautiche.",
     "Speed track colour-codes each vessel's recorded trail by speed — green is slow, red is fast.": "La „Traccia velocità” colora il percorso registrato di ogni nave in base alla velocità — verde lenta, rossa veloce.",
     "The Measure tool computes the distance between clicks on the fleet map.": "Lo strumento „Misura” calcola la distanza tra i clic sulla mappa della flotta.",
+    "The Flow layer animates wind or sea-current particles over the map, fed from an Open-Meteo grid for the current view.": "Il „Livello di flusso” anima particelle di vento o corrente marina sopra la mappa, alimentate da una griglia Open-Meteo per l'area corrente.",
+    "Alert zones: press ⭕ Zone, click once for the centre and again for the radius — you get notified when a tracked vessel enters the circle.": "Zone di avviso: premi ⭕ Zona, clicca una volta per il centro e di nuovo per il raggio — vieni avvisato quando una nave tracciata entra nel cerchio.",
     "Switch the fleet map between street and satellite imagery, or overlay nautical charts, with the layer control on the map.": "Passa dalla mappa flotta tra immagini stradali e satellitari, o sovrapponi carte nautiche, con il controllo dei livelli sulla mappa.",
     "Nearby Ports & Marinas lists the closest major ports to the selected vessel — with distance, ETA at current speed and tracked vessels near the nearest port.": "„Porti e marine vicine” elenca i porti principali più vicini alla nave selezionata — con distanza, ETA alla velocità attuale e navi tracciate vicino al porto più vicino.",
+    "Dark": "Buio", "quiet": "silenzio", "dark": "buio",
+    "Signal dark — no AIS report in {h} h": "Segnale perso — nessun report AIS da {h} h",
+    "{name} has gone quiet — no AIS update in {h} h": "{name} è silenziosa — nessun aggiornamento AIS da {h} h",
+    "{name} has gone dark — no AIS update in {h} h": "{name} è sparita dall'AIS — nessun report da {h} h",
+    "{name} has reported a position again": "{name} ha riportato di nuovo la sua posizione",
+    "💨 Flow": "💨 Flusso", "🌊 Flow": "🌊 Flusso",
+    "💨 Flow on": "💨 Flusso on", "🌊 Flow on": "🌊 Flusso on",
+    "⭕ Zone": "⭕ Zona", "⭕ Cancel": "⭕ Annulla",
+    "Click to place the centre — click again to set the radius.": "Clicca per posizionare il centro — clicca di nuovo per impostare il raggio.",
+    "Click to set the radius…": "Clicca per impostare il raggio…",
+    "Zone {n}": "Zona {n}", "Zone {name} added": "Zona {name} aggiunta",
+    "Zone removed": "Zona rimossa", "Remove zone": "Rimuovi zona",
+    "Zone radius {r} nm": "Raggio zona {r} nm",
+    "Vessels inside": "Navi all'interno",
+    "{name} entered the {zone} zone": "{name} è entrata nella zona {zone}",
+    "Wind": "Vento", "Sea current": "Corrente marina",
+    "Loading wind grid…": "Caricamento griglia vento…",
+    "Wind · Open-Meteo": "Vento · Open-Meteo",
+    "Sea surface current · Open-Meteo": "Corrente marina · Open-Meteo",
+    "Flow unavailable ({msg})": "Livello di flusso non disponibile ({msg})",
   },
 };
 
@@ -1734,6 +2337,9 @@ function applyLang() {
   renderTimeline();
   renderDiscover();
   renderAlertsUI();
+  renderFlowUI();
+  renderZoneDrawUI();
+  renderZoneChips();
   renderSelected();
   rebuildLayerControl();
   renderMeasureButton();
@@ -2054,6 +2660,8 @@ const HELP = [
       "Ghost track projects where each moving vessel will be in 6 / 12 / 24 h.",
       "Speed track colour-codes each vessel's recorded trail by speed — green is slow, red is fast.",
       "The Measure tool computes the distance between clicks on the fleet map.",
+      "The Flow layer animates wind or sea-current particles over the map, fed from an Open-Meteo grid for the current view.",
+      "Alert zones: press ⭕ Zone, click once for the centre and again for the radius — you get notified when a tracked vessel enters the circle.",
       "Switch the fleet map between street and satellite imagery, or overlay nautical charts, with the layer control on the map.",
       "Replay plays back the positions this app has recorded since you started watching.",
       "Click a vessel on the map to open its live track.",
@@ -2092,6 +2700,7 @@ const HELP = [
     title: "Alerts & radar",
     items: [
       "Enable Alerts and set a distance to get notified when two tracked vessels come close.",
+      "Dark-fleet detection flags vessels whose AIS report has gone quiet (over 1 h) or dark (over 24 h), and logs when they report again.",
       "The Fleet Radar shows every vessel as a blip — bearing and distance from the selected vessel.",
     ],
   },
@@ -2157,6 +2766,8 @@ async function refreshAll() {
   const imos = state.vessels.map((v) => v.imo);
   await Promise.allSettled(imos.map((imo) => refreshVessel(imo)));
   checkProximity();
+  checkZones();
+  checkDarkFleet();
 }
 
 /* ---------------- real-time AIS (aisstream.io, via the proxy) ---------------- */
@@ -2217,6 +2828,8 @@ async function pollLive() {
   updateSelectedLive();
   renderFleetMap();
   checkProximity();
+  checkZones();
+  checkDarkFleet();
   reportFleet();
 }
 
@@ -2266,6 +2879,8 @@ async function addVessel(imo) {
     renderStats();
     renderDiscover();
     checkProximity();
+    checkZones();
+    checkDarkFleet();
     selectVessel(imo);
     flash(tF("Tracking {name} ({imo})", { name: v.name, imo }));
   } catch (err) {
@@ -2286,6 +2901,8 @@ function removeVessel(imo) {
   renderStats();
   renderDiscover();
   checkProximity();
+  checkZones();
+  checkDarkFleet();
   if (state.selectedImo === imo) {
     const next = state.vessels[0];
     if (next) selectVessel(next.imo);
@@ -2322,13 +2939,20 @@ function renderFleetStrip() {
     .map((v) => {
       const active = v.imo === state.selectedImo ? " active" : "";
       const pos = fmtLatLon(v);
+      const dl = darkLevel(v);
       return (
         '<button class="fleet-card' + active + '" data-imo="' + v.imo + '">' +
         '<img src="' + (v.photo || photoFallback()) + '" alt="">' +
         '<span class="fc-info">' +
         '<span class="fc-name">' + escapeHtml(v.name) + "</span>" +
         '<span class="fc-meta">' + escapeHtml(v.type || t("Vessel")) + " · IMO " + v.imo + "</span>" +
-        '<span class="fc-status">' + escapeHtml(trStatus(v.navStatus)) + " · " + pos + "</span>" +
+        '<span class="fc-status">' + escapeHtml(trStatus(v.navStatus)) + " · " + pos +
+        (dl
+          ? ' <span class="card-dark ' + (dl === 2 ? "dark" : "quiet") + '" title="' +
+            tF("Signal dark — no AIS report in {h} h", { h: quietHours(v) }) + '">' +
+            (dl === 2 ? t("dark") : t("quiet")) + "</span>"
+          : "") +
+        "</span>" +
         "</span>" +
         '<span class="fc-remove" data-remove="' + v.imo + '" title="Remove">&times;</span>' +
         "</button>"
@@ -2621,17 +3245,41 @@ function renderFleetMap() {
       state.baseLayers.streets.addTo(state.fleetMap);
       rebuildLayerControl();
       state.fleetMap.on("click", (e) => {
-        if (state.measure.active) addMeasurePoint(e.latlng.lat, e.latlng.lng);
+        if (state.measure.active) {
+          addMeasurePoint(e.latlng.lat, e.latlng.lng);
+          return;
+        }
+        if (state.zoneDraw.active) onZoneClick(e.latlng);
+      });
+      state.fleetMap.on("mousemove", (e) => {
+        if (state.zoneDraw.active && state.zoneDraw.center) updateZonePreview(e.latlng);
       });
       state.fleetMap.on("dblclick", (e) => {
         if (state.measure.active) {
           L.DomEvent.stop(e);
           toggleMeasure();
+        } else if (state.zoneDraw.active) {
+          L.DomEvent.stop(e);
+          cancelZoneDraw();
+          toggleZoneDraw();
         }
       });
+      state.fleetMap.on("moveend zoomend resize", flowGridSoon);
+      if (state.flow.on) {
+        ensureFlowPane();
+        syncFlowCanvas();
+        loadFlowGrid();
+      }
     }
     if (state.fleetLayers) state.fleetLayers.forEach((l) => state.fleetMap.removeLayer(l));
     state.fleetLayers = [];
+
+    drawZoneLayers();
+    if (state.flow.on) {
+      ensureFlowPane();
+      syncFlowCanvas();
+      startFlowLoop();
+    }
 
     ensureCluster(() => {
       const group = window.L.markerClusterGroup ? L.markerClusterGroup() : null;
@@ -2886,6 +3534,8 @@ async function init() {
   renderSpeedTrackToggle();
   renderDiscover();
   checkProximity();
+  checkZones();
+  checkDarkFleet();
   updateShareUrl();
   startRadar();
   renderSelected();
