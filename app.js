@@ -266,6 +266,46 @@ function localOf(v, utcDate) {
   return new Date(utcDate.getTime() + off * 3600000);
 }
 
+/* ---------------- vessel civil timezone (timeapi.io, key-less) ---------------- */
+const TZ_CACHE = new Map();
+const TZ_FMT = new Map();
+function tzCell(lat, lon) { return (Math.round(lat * 2) + 180) * 2000 + (Math.round(lon * 2) + 180); }
+function vesselTz(v) {
+  if (!v || !v.position || v.position.lat == null || v.position.lon == null) return null;
+  const cell = tzCell(v.position.lat, v.position.lon);
+  if (TZ_CACHE.has(cell)) return TZ_CACHE.get(cell);
+  if (typeof fetch !== "function") return null;
+  TZ_CACHE.set(cell, null);
+  fetch("https://timeapi.io/api/timezone/coordinate?latitude=" + v.position.lat + "&longitude=" + v.position.lon)
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j) => {
+      TZ_CACHE.set(cell, j && j.timeZone ? j.timeZone : null);
+      const cur = selected();
+      if (cur && cur.position && cur.position.lat != null && tzCell(cur.position.lat, cur.position.lon) === cell) updateAboard(cur);
+    })
+    .catch(() => {});
+  return null;
+}
+function tzParts(d, tz, opts) {
+  const key = tz + "|" + JSON.stringify(opts);
+  let f = TZ_FMT.get(key);
+  if (!f) { f = new Intl.DateTimeFormat("en-GB", Object.assign({ timeZone: tz }, opts)); TZ_FMT.set(key, f); }
+  const parts = f.formatToParts(d);
+  return (t) => { const x = parts.find((p) => p.type === t); return x ? x.value : "00"; };
+}
+function tzClock(d, tz) {
+  const g = tzParts(d, tz, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
+  return g("hour").padStart(2, "0") + ":" + g("minute").padStart(2, "0") + ":" + g("second").padStart(2, "0");
+}
+function tzHm(d, tz) {
+  const g = tzParts(d, tz, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  return g("hour").padStart(2, "0") + ":" + g("minute").padStart(2, "0");
+}
+function tzDate(d, tz) {
+  const g = tzParts(d, tz, { day: "numeric", month: "short", year: "numeric" });
+  return g("day") + " " + g("month") + " " + g("year");
+}
+
 /* ---------------- activity log (localStorage) ---------------- */
 
 const K_EVENTS = "tracker_events";
@@ -803,7 +843,7 @@ function updateVoyageProgress(v) {
 
 function renderAboard(v) {
   const nameEl = $("aboard-name");
-  if (nameEl) nameEl.textContent = v ? " " + v.name : "";
+  if (nameEl) nameEl.textContent = v ? v.name : "";
   updateAboard(v);
 }
 
@@ -816,10 +856,11 @@ function updateAboard(v) {
     return;
   }
   const now = new Date();
+  const tz = vesselTz(v);
   const local = localOf(v, now);
-  if (clockEl) clockEl.textContent = fmtClock(local);
+  if (clockEl) clockEl.textContent = tz ? tzClock(now, tz) : fmtClock(local);
   const dtEl = $("aboard-date");
-  if (dtEl) dtEl.textContent = local.getUTCDate() + " " + MONTHS[local.getUTCMonth()] + " " + local.getUTCFullYear();
+  if (dtEl) dtEl.textContent = tz ? tzDate(now, tz) : local.getUTCDate() + " " + MONTHS[local.getUTCMonth()] + " " + local.getUTCFullYear();
   const today = sunTimes(v.position.lat, v.position.lon, now);
   if (!today) {
     if (scEl) scEl.textContent = t("Polar day/night — no sunrise or sunset");
@@ -828,8 +869,8 @@ function updateAboard(v) {
   const srEl = $("aboard-sunrise");
   const ssEl = $("aboard-sunset");
   const dlEl = $("aboard-daylight");
-  if (srEl) srEl.textContent = fmtHm(localOf(v, today.sunrise));
-  if (ssEl) ssEl.textContent = fmtHm(localOf(v, today.sunset));
+  if (srEl) srEl.textContent = tz ? tzHm(today.sunrise, tz) : fmtHm(localOf(v, today.sunrise));
+  if (ssEl) ssEl.textContent = tz ? tzHm(today.sunset, tz) : fmtHm(localOf(v, today.sunset));
   if (dlEl) dlEl.textContent = fmtDur(today.sunset.getTime() - today.sunrise.getTime());
   const utcNow = now.getTime();
   let next = null;

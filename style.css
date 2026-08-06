@@ -351,6 +351,7 @@ main { padding: 12px 22px 46px; }
 
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
 .card-head h2 { font-size: 16px; font-weight: 700; letter-spacing: 0.3px; color: var(--text); display: flex; align-items: center; }
+.card-head h2 #aboard-name { margin-left: 8px; font-weight: 600; color: var(--accent); }
 .card-head h2::before {
   content: ""; width: 9px; height: 9px; border-radius: 50%; margin-right: 10px; flex: 0 0 auto;
   background: var(--grad); box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 60%, transparent);
