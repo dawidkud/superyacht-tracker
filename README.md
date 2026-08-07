@@ -1,4 +1,4 @@
-# 🛥️ Superyacht Tracker <img width="40" height="40" alt="image" src="https://github.com/user-attachments/assets/145a43f1-0de5-4070-a60f-6a2f55993402" />
+# 🛥️ Superyacht Tracker
 
 **English** · [Polski](README.pl.md) · [Italiano](README.it.md)
 
