@@ -42,6 +42,7 @@ const state = {
   compareSel: [], // max 2 imos
   measure: { active: false, points: [], line: null, markers: [], total: 0 },
   liveStatus: "off",
+  boardFilter: null,
 };
 
 /* ---------------- theme switcher ---------------- */
@@ -392,17 +393,26 @@ function renderStats() {
     { label: t("Avg SOG"), value: avg, dot: "blue" },
   ];
   const dark = vs.filter((v) => darkLevel(v) >= 1).length;
-  if (dark) chips.push({ label: t("Dark"), value: dark, dot: "red" });
+  if (dark) chips.push({ label: t("Dark"), value: dark, dot: "red", filter: "dark" });
   if (state.liveStatus === "connected")
     chips.push({ label: t("LIVE AIS"), value: "●", dot: "green", live: true });
   bar.innerHTML = chips
     .map(
       (c) =>
-        '<div class="stat-chip' + (c.live ? " live" : "") + '"><span class="dot ' + c.dot + '"></span>' +
+        '<div class="stat-chip' + (c.live ? " live" : "") + (c.filter ? " clickable" : "") + (state.boardFilter === c.filter && c.filter ? " active" : "") + '" ' +
+        (c.filter ? 'data-filter="' + c.filter + '"' : '') + '><span class="dot ' + c.dot + '"></span>' +
         "<b>" + c.value + "</b><span class=\"chip-label\">" + c.label + "</span></div>"
     )
     .join("");
 }
+$("stats-bar").addEventListener("click", (e) => {
+  const chip = e.target.closest(".stat-chip[data-filter]");
+  if (!chip) return;
+  const f = chip.getAttribute("data-filter");
+  if (state.boardFilter === f) state.boardFilter = null;
+  else state.boardFilter = f;
+  renderBoard();
+});
 
 /* ---------------- sparklines & fleet comparison ---------------- */
 
@@ -526,7 +536,7 @@ function renderBoard() {
   if (!tbody) return;
   const key = state.sortKey || "name";
   const dir = state.sortDir || 1;
-  const list = state.vessels.slice().sort((a, b) => {
+  const list = state.vessels.filter(v => !state.boardFilter || (state.boardFilter === 'dark' && darkLevel(v) >= 1)).slice().sort((a, b) => {
     const x = SORT_KEYS[key](a);
     const y = SORT_KEYS[key](b);
     if (typeof x === "number" && typeof y === "number") return (x - y) * dir;
@@ -3351,6 +3361,11 @@ function renderFleetMap() {
             interactive: false,
           })
         );
+        const dl = darkLevel(v);
+        const aura = dl > 0 ? '<div class="boat-aura ' + (dl === 2 ? "dark" : "quiet") + '"></div>' : "";
+        const alertHtml = dl > 0 ? ('<br><strong class="' + (dl === 2 ? "warn" : "gold") + '">' + (dl === 2 ? "🌑 AIS Dark" : "🌗 AIS Quiet") +
+                                   '</strong><br><small>' + tF("No update in {h} h", { h: quietHours(v) }) + "</small><br>") : "";
+
         add(
           L.marker([p.lat, p.lon], {
             icon: L.divIcon({
@@ -3359,11 +3374,12 @@ function renderFleetMap() {
               iconAnchor: [12, 12],
               html:
                 '<div class="boat-marker" style="--rot:' + cog + 'deg">' +
+                aura +
                 '<svg viewBox="0 0 24 24" width="24" height="24">' +
                 '<path fill="' + color + '" d="M12 2 L20 21 L12 17 L4 21 Z"/></svg></div>',
             }),
           }).bindPopup(
-            "<strong>" + escapeHtml(v.name) + "</strong><br>" +
+            "<strong>" + escapeHtml(v.name) + "</strong>" + alertHtml + "<br>" +
               (v.navStatus ? escapeHtml(trStatus(v.navStatus)) + "<br>" : "") +
               (p.sog != null ? p.sog.toFixed(1) + " kn · " : "") +
               (p.cog != null ? Math.round(p.cog) + "°<br>" : "") +
