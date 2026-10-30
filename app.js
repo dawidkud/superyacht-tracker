@@ -2753,6 +2753,7 @@ const HELP = [
       "Enable Alerts and set a distance to get notified when two tracked vessels come close.",
       "Dark-fleet detection flags vessels whose AIS report has gone quiet (over 1 h) or dark (over 24 h), and logs when they report again.",
       "The Fleet Radar shows every vessel as a blip — bearing and distance from the selected vessel.",
+      "Click the 'Dark' chip in the stats bar to filter the board and view only the dark fleet.",
     ],
   },
   {
