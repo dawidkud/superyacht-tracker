@@ -58,6 +58,7 @@ Live demo: **https://superyacht-tracker.onrender.com**
 
 ### 📤 Sharing & command center
 - 🔗 **Shareable fleet link** — the current fleet is encoded in the URL (`?fleet=…`), so anyone can open the same fleet with one click
+- 💾 **First-party history backup** — everything this app learns (position samples, stats, activity log, zones, dark-fleet state) lives in your browser. **Back up** in Fleet Activity downloads it all as versioned JSON; **Restore** merges a file back without discarding newer observations; **🔗 + history** copies a short link that carries the history too
 - 📡 <span style="color:#19d3a5">**Fleet radar**</span> — a command-center radar view centred on the selected vessel, with pulsing, status-coloured blips and rotating sweep
 
 ### 🎨 Themes & languages
@@ -96,6 +97,15 @@ node server.js
 Override the port with the `PORT` environment variable. The `.env` file is gitignored — on Render set `AIS_STREAM_KEY` as a service environment variable instead.
 
 > Why a backend? VesselFinder blocks browser-side requests (CORS), so a small local proxy fetches and caches the vessel data instead. Likewise, aisstream.io forbids browser connections (and its key must not be exposed), so the WebSocket feed runs on the server and is relayed to the app.
+
+### Keeping your observation history
+
+Everything the app learns about your fleet is stored in `localStorage` — it never leaves your device. That means clearing site data (or switching browser) wipes it. Two ways to keep it:
+
+- **Back up / Restore** in the Fleet Activity card download the whole snapshot as `superyacht-history-YYYY-MM-DD.json` and merge it back later. Restore is a *merge*, not a replace: position samples and events are deduplicated, stats take the highest counters, and your local theme/language/preferences always win.
+- **🔗 + history** next to Share fleet uploads the snapshot under a random 96-bit token and copies a link like `?fleet=…&h=…`. Anyone opening that link inherits the observations (merged into whatever they already have). Tokens are unguessable but treat the link as a secret.
+
+Server-side snapshots go in `data/history/` by default; set `HISTORY_DIR` to move them. **On Render's free tier that directory is ephemeral** — snapshots disappear on restart, so the link degrades to "no saved history" while the JSON backup remains durable. Mount a persistent volume (or run on your own VPS) if you want share links to survive redeploys. The endpoint rejects snapshots over 2 MB.
 
 ---
 

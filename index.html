@@ -69,6 +69,7 @@
       </label>
       <span id="encounters"></span>
       <button class="mini-btn" id="share-btn" data-i18n="🔗 Share fleet">🔗 Share fleet</button>
+      <button class="mini-btn" id="share-history-btn" data-i18n="🔗 + history" data-i18n-title="Copy a link that carries the recorded history too" title="Copy a link that carries the recorded history too">🔗 + history</button>
     </div>
   </section>
 
@@ -221,10 +222,16 @@
     <section id="timeline" class="card">
       <div class="card-head">
         <h2 data-i18n="Fleet Activity">Fleet Activity</h2>
-        <button class="mini-btn" id="timeline-clear" data-i18n="Clear">Clear</button>
+        <div class="data-tools">
+          <button class="mini-btn" id="backup-btn" data-i18n="💾 Back up" data-i18n-title="Download your fleet, positions, stats and alerts as a JSON file" title="Download your fleet, positions, stats and alerts as a JSON file">💾 Back up</button>
+          <button class="mini-btn" id="restore-btn" data-i18n="📥 Restore" data-i18n-title="Merge a previously downloaded history file into this browser" title="Merge a previously downloaded history file into this browser">📥 Restore</button>
+          <button class="mini-btn" id="timeline-clear" data-i18n="Clear">Clear</button>
+        </div>
       </div>
-      <div class="timeline" id="timeline"></div>
+      <div class="timeline" id="timeline-list"></div>
       <p class="card-note" data-i18n="Events are recorded as this app observes each vessel during refreshes (status, speed and destination changes).">Events are recorded as this app observes each vessel during refreshes (status, speed and destination changes).</p>
+      <p class="card-note" data-i18n="History lives in this browser only. Back up downloads it to a file; Restore merges a file back; 🔗 + history makes a short link that carries it too.">History lives in this browser only. Back up downloads it to a file; Restore merges a file back; 🔗 + history makes a short link that carries it too.</p>
+      <input type="file" id="restore-file" accept="application/json,.json" hidden>
     </section>
 
     <section class="grid-2">

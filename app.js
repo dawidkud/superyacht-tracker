@@ -7,7 +7,7 @@
 
 const $ = (id) => document.getElementById(id);
 
-const VERSION = "1.3.0";
+const VERSION = "1.4.0";
 
 /* storage keys — declared before `state` so the loaders below run cleanly */
 const K_IMOS = "tracker_imos";
@@ -93,6 +93,210 @@ function saveData(v) {
 }
 function loadSelected() {
   return localStorage.getItem(K_SELECTED);
+}
+
+/* ---------------- first-party observation history ----------------
+ * Everything this app learns lives in localStorage. Great for privacy,
+ * terrible for durability: clearing site data wipes months of watching.
+ * These helpers move it in and out as one versioned JSON snapshot and
+ * merge on import so newer observations are never thrown away.
+ * ------------------------------------------------------------------ */
+
+const HISTORY_FORMAT = "syt-history";
+const HISTORY_VERSION = 1;
+const HISTORY_TOKEN_RE = /^[a-f0-9]{24}$/;
+
+const isImo = (v) => /^\d{7}$/.test(String(v || ""));
+
+function readTrackerKeys() {
+  const out = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k || k.indexOf("tracker_") !== 0) continue;
+    const raw = localStorage.getItem(k);
+    try { out[k] = JSON.parse(raw); } catch (_) { out[k] = raw; }
+  }
+  return out;
+}
+
+function collectHistory() {
+  return {
+    format: HISTORY_FORMAT,
+    version: HISTORY_VERSION,
+    appVersion: VERSION,
+    exportedAt: Date.now(),
+    imos: state.vessels.map((v) => v.imo),
+    keys: readTrackerKeys(),
+  };
+}
+
+function asArray(v) {
+  if (Array.isArray(v)) return v;
+  if (typeof v === "string") {
+    try { const a = JSON.parse(v); return Array.isArray(a) ? a : []; } catch (_) {}
+  }
+  return [];
+}
+
+function mergeSamples(a, b) {
+  const seen = new Set();
+  const out = [];
+  for (const s of asArray(a).concat(asArray(b))) {
+    if (!s || typeof s !== "object") continue;
+    const key = [s.t, s.lat, s.lon, s.sog, s.cog].join("|");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(s);
+  }
+  out.sort((x, y) => (+x.t || 0) - (+y.t || 0));
+  return out.slice(-HIST_MAX);
+}
+
+function mergeStats(a, b) {
+  if (!a || typeof a !== "object") return b && typeof b === "object" ? b : null;
+  if (!b || typeof b !== "object") return a;
+  const o = Object.assign({}, a);
+  const counters = ["observedMs", "anchoredMs", "underwayMs", "otherMs", "distanceNm",
+    "sogSum", "sogN", "maxSog", "longestAnchorMs", "arrivals", "departures"];
+  for (const k of counters) o[k] = Math.max(+a[k] || 0, +b[k] || 0);
+  const first = [+a.firstSeen, +b.firstSeen].filter((n) => n > 0);
+  o.firstSeen = first.length ? Math.min.apply(null, first) : Date.now();
+  o.lastSeen = Math.max(+a.lastSeen || 0, +b.lastSeen || 0);
+  const newer = (+a.lastSeen || 0) >= (+b.lastSeen || 0) ? a : b;
+  for (const k of ["prevStatus", "prevPos", "prevAt", "anchorRunStart"]) {
+    if (newer[k] !== undefined) o[k] = newer[k];
+  }
+  o.imo = o.imo || a.imo || b.imo;
+  return o;
+}
+
+function mergeEvents(a, b) {
+  const seen = new Set();
+  const out = [];
+  for (const e of asArray(a).concat(asArray(b))) {
+    if (!e || typeof e !== "object") continue;
+    const key = [e.t, e.imo, e.text].join("|");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(e);
+  }
+  out.sort((x, y) => (+y.t || 0) - (+x.t || 0));
+  return out.slice(0, MAX_EVENTS);
+}
+
+function mergeObjects(a, b) {
+  const o = {};
+  for (const src of [a, b]) {
+    if (!src || typeof src !== "object" || Array.isArray(src)) continue;
+    for (const k of Object.keys(src)) {
+      if (src[k] !== undefined && src[k] !== null) o[k] = src[k];
+    }
+  }
+  return o;
+}
+
+function mergeHistory(snap) {
+  if (!snap || snap.format !== HISTORY_FORMAT || !snap.keys ||
+      typeof snap.keys !== "object" || Array.isArray(snap.keys)) {
+    throw new Error(t("Not a Superyacht Tracker history file"));
+  }
+  const incoming = snap.keys;
+  const local = readTrackerKeys();
+
+  const imoSet = new Set();
+  [incoming[K_IMOS], local[K_IMOS], snap.imos].forEach((a) => {
+    asArray(a).forEach((x) => { if (isImo(x)) imoSet.add(String(x)); });
+  });
+  if (imoSet.size) incoming[K_IMOS] = Array.from(imoSet);
+
+  const zones = new Map();
+  asArray(incoming[K_ZONES]).concat(asArray(local[K_ZONES])).forEach((z) => {
+    if (z && z.id != null) zones.set(z.id, z);
+  });
+  if (zones.size) incoming[K_ZONES] = Array.from(zones.values());
+
+  incoming[K_EVENTS] = mergeEvents(incoming[K_EVENTS], local[K_EVENTS]);
+  for (const k of [K_DARK_SEEN, "tracker_prox_alerts", SETTINGS_KEY]) {
+    incoming[k] = mergeObjects(incoming[k], local[k]);
+  }
+  for (const k of Object.keys(local)) {
+    if (k.indexOf("tracker_hist_") === 0) incoming[k] = mergeSamples(incoming[k], local[k]);
+    else if (k.indexOf("tracker_stats_") === 0) incoming[k] = mergeStats(incoming[k], local[k]);
+  }
+  // Everything not merged above is local state or a UI preference — this
+  // browser's copy wins, so restoring a backup never changes your theme.
+  const merged = (k) => k === K_IMOS || k === K_ZONES || k === K_EVENTS ||
+    k === K_DARK_SEEN || k === "tracker_prox_alerts" || k === SETTINGS_KEY ||
+    k.indexOf("tracker_hist_") === 0 || k.indexOf("tracker_stats_") === 0;
+  for (const k of Object.keys(local)) {
+    if (!merged(k)) incoming[k] = local[k];
+  }
+
+  let samples = 0;
+  for (const k of Object.keys(incoming)) {
+    if (k.indexOf("tracker_hist_") === 0) samples += asArray(incoming[k]).length;
+    const v = incoming[k];
+    if (v === undefined || v === null) continue;
+    localStorage.setItem(k, typeof v === "string" ? v : JSON.stringify(v));
+  }
+  return tF("Restored {n} vessels, {m} events and {s} position samples", {
+    n: imoSet.size || state.vessels.length,
+    m: asArray(incoming[K_EVENTS]).length,
+    s: samples,
+  });
+}
+
+function downloadHistory() {
+  const snap = collectHistory();
+  let samples = 0;
+  for (const k of Object.keys(snap.keys)) {
+    if (k.indexOf("tracker_hist_") === 0) samples += asArray(snap.keys[k]).length;
+  }
+  const blob = new Blob([JSON.stringify(snap, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "superyacht-history-" + new Date(snap.exportedAt).toISOString().slice(0, 10) + ".json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  flash(tF("Backed up {n} vessels and {m} position samples", {
+    n: asArray(snap.keys[K_IMOS]).length || state.vessels.length, m: samples,
+  }));
+}
+
+async function restoreFromFile(file) {
+  try {
+    const snap = JSON.parse(await file.text());
+    const msg = mergeHistory(snap);
+    sessionStorage.setItem("tracker_history_msg", msg);
+    location.reload();
+  } catch (err) {
+    flash(tF("Restore failed: {msg}", { msg: err.message }));
+  }
+}
+
+async function shareWithHistory() {
+  try {
+    flash(t("Saving history…"));
+    const res = await fetch("/api/history", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(collectHistory()),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok || !data.token) throw new Error((data && data.error) || "Save failed");
+    const u = new URL(location.href);
+    u.searchParams.set("fleet", state.vessels.map((v) => v.imo).join(","));
+    u.searchParams.set("h", data.token);
+    const url = u.origin + u.pathname + "?" + u.searchParams.toString();
+    try { await navigator.clipboard.writeText(url); }
+    catch (_) { prompt("Superyacht Tracker", url); }
+    flash(t("Fleet + history link copied — anyone opening it inherits your observations"));
+  } catch (err) {
+    flash(tF("Could not save history: {msg}", { msg: err.message }));
+  }
 }
 
 /* ---------------- small helpers ---------------- */
@@ -344,7 +548,7 @@ function logChanges(prev, v) {
   }
 }
 function renderTimeline() {
-  const el = $("timeline");
+  const el = $("timeline-list");
   const evs = loadEvents();
   if (!evs.length) {
     el.innerHTML =
@@ -363,7 +567,7 @@ function renderTimeline() {
     })
     .join("");
 }
-$("timeline").addEventListener("click", (e) => {
+$("timeline-list").addEventListener("click", (e) => {
   const name = e.target.closest(".tl-name");
   if (name) selectVessel(name.getAttribute("data-imo"));
 });
@@ -2123,6 +2327,21 @@ const I18N = {
     "Wind · Open-Meteo": "Wiatr · Open-Meteo",
     "Sea surface current · Open-Meteo": "Prąd morski · Open-Meteo",
     "Flow unavailable ({msg})": "Warstwa przepływu niedostępna ({msg})",
+
+    "🔗 + history": "🔗 + historia",
+    "Copy a link that carries the recorded history too": "Kopiuj link, który zawiera również zapisaną historię",
+    "💾 Back up": "💾 Kopia",
+    "Download your fleet, positions, stats and alerts as a JSON file": "Pobierz flotę, pozycje, statystyki i alerty do pliku JSON",
+    "📥 Restore": "📥 Przywróć",
+    "Merge a previously downloaded history file into this browser": "Połącz wcześniej pobrany plik historii z tą przeglądarką",
+    "History lives in this browser only. Back up downloads it to a file; Restore merges a file back; 🔗 + history makes a short link that carries it too.": "Historia jest przechowywana tylko w tej przeglądarce. „Kopia” pobiera ją do pliku, „Przywróć” wczytuje plik z powrotem, a „🔗 + historia” tworzy krótki link, który ją przenosi.",
+    "Not a Superyacht Tracker history file": "To nie jest plik historii Superyacht Tracker",
+    "Restored {n} vessels, {m} events and {s} position samples": "Przywrócono {n} jednostek, {m} zdarzeń i {s} próbek pozycji",
+    "Backed up {n} vessels and {m} position samples": "Zapisano kopię: {n} jednostek i {m} próbek pozycji",
+    "Restore failed: {msg}": "Przywracanie nie powiodło się: {msg}",
+    "Saving history…": "Zapisywanie historii…",
+    "Fleet + history link copied — anyone opening it inherits your observations": "Link do floty z historią skopiowany — każdy, kto go otworzy, odziedziczy Twoje obserwacje",
+    "Could not save history: {msg}": "Nie udało się zapisać historii: {msg}",
   },
   it: {
     "Map": "Mappa", "Fleet": "Flotta", "Activity": "Attività", "Discover": "Scopri",
@@ -2294,6 +2513,21 @@ const I18N = {
     "Wind · Open-Meteo": "Vento · Open-Meteo",
     "Sea surface current · Open-Meteo": "Corrente marina · Open-Meteo",
     "Flow unavailable ({msg})": "Livello di flusso non disponibile ({msg})",
+
+    "🔗 + history": "🔗 + cronologia",
+    "Copy a link that carries the recorded history too": "Copia un link che include anche la cronologia registrata",
+    "💾 Back up": "💾 Backup",
+    "Download your fleet, positions, stats and alerts as a JSON file": "Scarica flotta, posizioni, statistiche e avvisi in un file JSON",
+    "📥 Restore": "📥 Ripristina",
+    "Merge a previously downloaded history file into this browser": "Unisci un file di cronologia scaricato in precedenza a questo browser",
+    "History lives in this browser only. Back up downloads it to a file; Restore merges a file back; 🔗 + history makes a short link that carries it too.": "La cronologia è solo in questo browser. Backup la scarica su file, Ripristina la ricarica, 🔗 + cronologia crea un link breve che la contiene.",
+    "Not a Superyacht Tracker history file": "Non è un file di cronologia di Superyacht Tracker",
+    "Restored {n} vessels, {m} events and {s} position samples": "Ripristinate {n} navi, {m} eventi e {s} campioni di posizione",
+    "Backed up {n} vessels and {m} position samples": "Backup di {n} navi e {m} campioni di posizione",
+    "Restore failed: {msg}": "Ripristino non riuscito: {msg}",
+    "Saving history…": "Salvataggio della cronologia…",
+    "Fleet + history link copied — anyone opening it inherits your observations": "Link flotta + cronologia copiato — chi lo apre eredita le tue osservazioni",
+    "Could not save history: {msg}": "Impossibile salvare la cronologia: {msg}",
   },
 };
 
@@ -2473,6 +2707,17 @@ $("share-btn").addEventListener("click", async () => {
   } catch (_) {
     prompt("Superyacht Tracker", url);
   }
+});
+$("share-history-btn").addEventListener("click", shareWithHistory);
+
+/* ---------------- history backup / restore UI ---------------- */
+
+$("backup-btn").addEventListener("click", downloadHistory);
+$("restore-btn").addEventListener("click", () => $("restore-file").click());
+$("restore-file").addEventListener("change", (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = "";
+  if (file) restoreFromFile(file);
 });
 
 /* ---------------- track replay ---------------- */
@@ -2701,6 +2946,7 @@ const HELP = [
       "Examples: 9692545 (Andromeda), 1009613 (Eclipse), 9811000 (Ever Given).",
       "Your fleet is saved in this browser and restored on your next visit.",
       "Share your whole fleet with one click using the Share fleet button — the link encodes your vessels.",
+      "Observation history is kept in this browser. Back up in Fleet Activity downloads it as JSON; Restore merges a file back; 🔗 + history copies a short link that carries it too.",
     ],
   },
   {
@@ -3556,6 +3802,23 @@ function updateLastReport() {
 
 async function init() {
   fillText("app-version", "v" + VERSION);
+
+  const historyParam = new URLSearchParams(location.search).get("h");
+  if (historyParam && HISTORY_TOKEN_RE.test(historyParam)) {
+    try {
+      const res = await fetch("/api/history?token=" + historyParam);
+      const data = await res.json();
+      if (res.ok && data.ok && data.history) {
+        sessionStorage.setItem("tracker_history_msg", mergeHistory(data.history));
+      }
+    } catch (_) {}
+  }
+  const historyMsg = sessionStorage.getItem("tracker_history_msg");
+  if (historyMsg) {
+    sessionStorage.removeItem("tracker_history_msg");
+    setTimeout(() => flash(historyMsg), 400);
+  }
+
   let imos = loadIMOs();
   const fleetParam = new URLSearchParams(location.search).get("fleet");
   if (fleetParam) {

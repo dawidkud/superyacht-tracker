@@ -17,6 +17,9 @@ const ROOT = __dirname;
 const PORT = process.env.PORT || 8123;
 const HOST = process.env.PORT ? "0.0.0.0" : "127.0.0.1";
 const PHOTO_DIR = path.join(ROOT, "photos");
+const HISTORY_DIR = process.env.HISTORY_DIR || path.join(ROOT, "data", "history");
+const HISTORY_MAX_BYTES = 2 * 1024 * 1024;
+const HISTORY_TOKEN_RE = /^[a-f0-9]{24}$/;
 
 /* ---------------- env (.env file, if present) ---------------- */
 
@@ -786,6 +789,46 @@ http
         online: list.filter((x) => x.online).length,
         visitors: list,
       });
+    }
+
+    /* First-party observation history: opt-in, token-addressed snapshots.
+     * The token is the only secret — 96 bits of randomness from crypto.
+     * On Render's free tier HISTORY_DIR is ephemeral, so links degrade to
+     * "not found" after a restart; the client-side JSON backup is durable. */
+    if (pathname === "/api/history" && req.method === "GET") {
+      const token = u.searchParams.get("token") || "";
+      if (!HISTORY_TOKEN_RE.test(token)) {
+        return sendJson(res, 400, { ok: false, error: "Invalid history token" });
+      }
+      try {
+        const obj = JSON.parse(fs.readFileSync(path.join(HISTORY_DIR, token + ".json"), "utf8"));
+        return sendJson(res, 200, { ok: true, history: obj });
+      } catch (_) {
+        return sendJson(res, 404, { ok: false, error: "No saved history for that link" });
+      }
+    }
+
+    if (pathname === "/api/history" && req.method === "POST") {
+      return readBody(req)
+        .then((body) => {
+          if (Buffer.byteLength(body) > HISTORY_MAX_BYTES) {
+            return sendJson(res, 413, { ok: false, error: "History snapshot too large" });
+          }
+          let obj;
+          try {
+            obj = JSON.parse(body);
+          } catch (_) {
+            return sendJson(res, 400, { ok: false, error: "Bad JSON body" });
+          }
+          if (!obj || obj.format !== "syt-history" || !obj.keys || typeof obj.keys !== "object" || Array.isArray(obj.keys)) {
+            return sendJson(res, 400, { ok: false, error: "Not a history snapshot" });
+          }
+          const token = crypto.randomBytes(12).toString("hex");
+          fs.mkdirSync(HISTORY_DIR, { recursive: true });
+          fs.writeFileSync(path.join(HISTORY_DIR, token + ".json"), JSON.stringify(obj));
+          return sendJson(res, 200, { ok: true, token });
+        })
+        .catch(() => sendJson(res, 400, { ok: false, error: "Bad body" }));
     }
 
     if (pathname === "/api/vessel") {
